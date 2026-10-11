@@ -53,11 +53,19 @@ A scan does not run at session startup, so it does not start a second copy of ea
 
 ## Install
 
+This package lives in [pi-mcp-extensions](https://github.com/richardanaya/pi-mcp-extensions). From a checkout of that repo:
+
 ```bash
-cd ~/repos/pi-mcp-events
+cd pi-mcp-events
 npm install --ignore-scripts
 ```
 
-Add the package path to pi's `extensions` setting, or install `pi-mcp-events` from npm. The published package is the TypeScript sources pi loads. Version 0.1.1.
+Add the package path to pi's `extensions` setting (the package entry is `./src/index.ts`), or install `pi-mcp-events` from npm:
+
+```bash
+pi install npm:pi-mcp-events
+```
+
+The published package is the TypeScript sources pi loads. Version 0.1.1.
 
 `npm publish` runs the tests through `prepublishOnly`.

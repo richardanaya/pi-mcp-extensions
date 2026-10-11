@@ -53,7 +53,7 @@ Node 22 or newer. Peer dependency `@earendil-works/pi-coding-agent` 1.0.1. The h
 pi install npm:pi-mcp-apps
 ```
 
-Local load: `pi -e ~/repos/pi-mcp-apps/index.ts`.
+Local load from a checkout of [pi-mcp-extensions](https://github.com/richardanaya/pi-mcp-extensions): `pi -e pi-mcp-apps/index.ts`.
 
 ## Not in this host
 
