@@ -1,0 +1,57 @@
+{
+  "name": "pi-mcp-skills",
+  "version": "0.1.0",
+  "description": "Discover and load MCP Skills (SEP-2640) from the servers already connected in pi",
+  "license": "MIT",
+  "author": "Richard Anaya",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --experimental-strip-types --test --test-concurrency=1 tests/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richardanaya/pi-mcp-skills.git"
+  },
+  "homepage": "https://github.com/richardanaya/pi-mcp-skills#readme",
+  "bugs": {
+    "url": "https://github.com/richardanaya/pi-mcp-skills/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "mcp",
+    "skills",
+    "sep-2640"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "1.0.1",
+    "typebox": "1.3.27"
+  },
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.0.1",
+    "@earendil-works/pi-mcp": "1.0.1",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@types/node": "^22.15.0",
+    "typebox": "1.3.27",
+    "typescript": "^5.8.3",
+    "zod": "^4.6.5"
+  }
+}
