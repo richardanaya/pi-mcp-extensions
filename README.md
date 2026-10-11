@@ -1,21 +1,62 @@
 # pi-mcp-extensions
 
-[pi](https://github.com/earendil-works/pi) coding-agent extensions that add client support for MCP extensions. This repository is the home of those packages. Each directory is its own npm package. There is no root workspace.
-
-| Directory | npm package | Version | MCP extension | Spec |
-| --- | --- | --- | --- | --- |
-| [`pi-mcp-skills`](pi-mcp-skills/README.md) | `pi-mcp-skills` | 0.1.0 | `io.modelcontextprotocol/skills` | [SEP-2640](https://modelcontextprotocol.io/seps/2640-skills-extension) Final (merged 2026-09-13); stable spec, base protocol `2026-07-28` |
-| [`pi-mcp-tasks`](pi-mcp-tasks/README.md) | `pi-mcp-tasks` | 0.1.0 | `io.modelcontextprotocol/tasks` | [SEP-2663](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/02dd8f61/seps/2663-tasks-extension.md) at commit `02dd8f61` |
-| [`pi-mcp-apps`](pi-mcp-apps/README.md) | `pi-mcp-apps` | 0.1.0 | `io.modelcontextprotocol/ui` | [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) `2026-01-26` |
-| [`pi-mcp-events`](pi-mcp-events/README.md) | `pi-mcp-events` | 0.1.1 | none (draft; discovery looks for an `events` capability) | [triggers/events design sketch](https://github.com/modelcontextprotocol/experimental-ext-triggers-events/blob/main/docs/design-sketch-proposal.md), ChatGPT webhook slice on protocol `2026-07-28` |
+[pi](https://github.com/earendil-works/pi) coding-agent extensions that add client support for MCP extensions. The standalone `pi-mcp-*` repositories are gone. This repository is the source for the four packages below. Each directory is published as its own npm package. Pi loads the TypeScript sources. There is no compile step.
 
 Skills, tasks, and apps send MCP requests through the client pi already connected. Events opens its own connection: `server/discover` first, then every request carries `io.modelcontextprotocol/protocolVersion: "2026-07-28"` in `_meta`. None of the packages register a slash command.
 
-Each package's `repository`, `homepage`, and `bugs` fields still name its former standalone repository.
+## Packages
+
+### pi-mcp-apps
+
+Renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) from the servers pi is already connected to. npm package `pi-mcp-apps` 0.1.0. Extension id `io.modelcontextprotocol/ui`.
+
+**Spec.** SEP-1865, named in `package.json`. The package README calls the [2026-01-26 specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) stable. It does not label the SEP Final or an experimental draft.
+
+```bash
+pi install npm:pi-mcp-apps
+```
+
+Local load from this repo: `pi -e pi-mcp-apps/index.ts`. Details, tools, and the host gaps are in [`pi-mcp-apps/README.md`](pi-mcp-apps/README.md).
+
+### pi-mcp-events
+
+Discovers MCP event types on the servers `/mcp` already knows and manages subscriptions. npm package `pi-mcp-events` 0.1.1. There is no extension id. Discovery looks for an `events` capability.
+
+**Spec.** Experimental draft. Events are not part of the MCP specification. The written text is the [triggers/events design sketch](https://github.com/modelcontextprotocol/experimental-ext-triggers-events/blob/main/docs/design-sketch-proposal.md). This package speaks protocol `2026-07-28` and the ChatGPT webhook slice of that draft, and it also calls poll and push when a server advertises them. No SEP number is named in the package.
+
+```bash
+pi install npm:pi-mcp-events
+```
+
+From a checkout, `cd pi-mcp-events && npm install --ignore-scripts`, then add that directory to pi's `extensions` setting. The package entry is `./src/index.ts`. Details are in [`pi-mcp-events/README.md`](pi-mcp-events/README.md).
+
+### pi-mcp-skills
+
+Discovers and loads MCP skills from the servers pi is already connected to. npm package `pi-mcp-skills` 0.1.0. Extension id `io.modelcontextprotocol/skills`.
+
+**Spec.** [SEP-2640](https://modelcontextprotocol.io/seps/2640-skills-extension) is Final (merged 2026-09-13). That SEP page is a historical record. The package implements the [stable skills specification](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills) that replaced it, base protocol `2026-07-28`. Where they disagree, the stable spec wins.
+
+```bash
+pi install npm:pi-mcp-skills
+```
+
+Details, tools, flags, and the requirement matrix are in [`pi-mcp-skills/README.md`](pi-mcp-skills/README.md).
+
+### pi-mcp-tasks
+
+Polls MCP task handles returned by `tools/call` and puts the result back into the conversation. npm package `pi-mcp-tasks` 0.1.0. Extension id `io.modelcontextprotocol/tasks`.
+
+**Spec.** [SEP-2663](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/02dd8f61/seps/2663-tasks-extension.md), pinned at commit `02dd8f61`. The package README and `src/requirements.ts` do not label this SEP Final or an experimental draft.
+
+```bash
+pi install npm:pi-mcp-tasks
+```
+
+Details, tools, flags, and the requirement matrix are in [`pi-mcp-tasks/README.md`](pi-mcp-tasks/README.md).
 
 ## pi-mcp-skills
 
-Discovers and loads [MCP skills](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills) from servers pi is already connected to. The stable specification is the source of truth. SEP-2640 is the historical record. Where they disagree, the stable spec wins.
+The stable specification is the source of truth. SEP-2640 is the historical record. Where they disagree, the stable spec wins.
 
 Node `>=22`. Peer dependency `@earendil-works/pi-coding-agent` `1.0.1` (and `typebox` `1.3.27`). The attach hook also patches the bundled connection class in `dist/bundle/chunks/runtime-*.js`, which is what pi 1.1 loads. Entry point: `./index.ts`.
 
@@ -49,7 +90,7 @@ The full row-by-row matrix is in [`pi-mcp-skills/README.md`](pi-mcp-skills/READM
 
 ## pi-mcp-tasks
 
-Client for the MCP Tasks extension. A `tools/call` can return a task handle. The extension tells the server that pi supports tasks, polls `tasks/get` until the task ends, and puts the result, error, or cancellation back into the conversation. It follows the migration off the legacy `2025-11-25` tasks protocol: it never calls `tasks/result`, never sends the legacy `task` parameter, and never advertises `tasks.requests`, `tasks.list`, or `tasks.cancel`.
+A `tools/call` can return a task handle. The extension tells the server that pi supports tasks, polls `tasks/get` until the task ends, and puts the result, error, or cancellation back into the conversation. It follows the migration off the legacy `2025-11-25` tasks protocol: it never calls `tasks/result`, never sends the legacy `task` parameter, and never advertises `tasks.requests`, `tasks.list`, or `tasks.cancel`.
 
 Node `>=22`. Peer dependency `@earendil-works/pi-coding-agent` `1.0.1` (and `typebox` `1.3.27`). The hook also patches `dist/bundle/chunks/runtime-*.js`. Entry point: `./index.ts`.
 
@@ -84,7 +125,7 @@ The full matrix and the readings the code uses are in [`pi-mcp-tasks/README.md`]
 
 ## pi-mcp-apps
 
-Hosts MCP Apps from servers pi is already connected to. During `initialize` the client advertises:
+During `initialize` the client advertises:
 
 ```json
 { "io.modelcontextprotocol/ui": { "mimeTypes": ["text/html;profile=mcp-app"] } }
@@ -131,7 +172,7 @@ Tools whose `visibility` does not include `"model"` are removed from the active 
 
 ## pi-mcp-events
 
-Manages MCP events on the servers `/mcp` already knows. Events are not part of the MCP specification. This package speaks protocol `2026-07-28` and the ChatGPT webhook slice of the draft, and it also calls poll and push when a server advertises them. A server that only speaks `2025-11-25` fails discovery and is reported as an error.
+A server that only speaks `2025-11-25` fails discovery and is reported as an error.
 
 Node `>=22.19.0`. Dependencies include `@earendil-works/pi-coding-agent` `1.0.2` and `@earendil-works/pi-mcp` `1.0.2`. Entry point: `./src/index.ts`. There is no flag.
 
@@ -170,6 +211,21 @@ HTTP auth is an `Authorization` header, a `/login` provider token, or the OAuth 
 | `gap` and `terminated` webhook control messages | missing |
 | Browser sign-in | missing |
 
+## Monorepo status
+
+These four directories share one git repository. They are not set up as one workspace. The notes below are what is in the tree.
+
+- **No root package manifest or workspace config.** There is no `package.json` at the repository root, and no `pnpm-workspace.yaml`, `lerna.json`, `nx.json`, or `turbo.json`. None of the package manifests declare a `workspaces` field.
+- **CI files exist in two packages, and none at the root.** `pi-mcp-skills/.github/workflows/ci.yml` and `pi-mcp-tasks/.github/workflows/ci.yml` each run `npm ci`, `npm test`, and `npm run typecheck` on Node 22. `pi-mcp-apps` and `pi-mcp-events` have no workflow file. There is no `.github/workflows` directory at the repository root. GitHub Actions loads workflows from that root path, so the nested files are not the workflows for this repository.
+- **Each package keeps its own lockfile.** `pi-mcp-apps/package-lock.json`, `pi-mcp-events/package-lock.json`, `pi-mcp-skills/package-lock.json`, and `pi-mcp-tasks/package-lock.json` are separate. There is no lockfile at the root.
+- **`pi-coding-agent` and `pi-mcp` versions and dependency kinds differ.** `pi-mcp-apps`, `pi-mcp-skills`, and `pi-mcp-tasks` declare `@earendil-works/pi-coding-agent` `1.0.1` as a `peerDependency` and again as a `devDependency`. `pi-mcp-events` declares `@earendil-works/pi-coding-agent` `1.0.2` under `dependencies`, not as a peer. `@earendil-works/pi-mcp` is a `devDependency` at `1.0.1` in skills and tasks. Tasks also sets `overrides` so `@earendil-works/pi-mcp` stays at `1.0.1`. Apps does not depend on `@earendil-works/pi-mcp`. Events declares `@earendil-works/pi-mcp` `1.0.2` under `dependencies`. The same split applies to `typebox` `1.3.27`: a `peerDependency` in apps, skills, and tasks, and a direct `dependency` in events.
+- **`pi-mcp-events` has no typecheck script.** Apps, skills, and tasks define `"typecheck": "tsc --noEmit"`. Events has a `tsconfig.json`. Its `scripts` are `test` and `prepublishOnly` only.
+- **`repository`, `homepage`, and `bugs` still name the deleted standalone repositories.**
+  - `pi-mcp-apps`: `git+https://github.com/richardanaya/pi-mcp-apps.git`, `https://github.com/richardanaya/pi-mcp-apps#readme`, `https://github.com/richardanaya/pi-mcp-apps/issues`
+  - `pi-mcp-events`: `git+https://github.com/richardanaya/pi-mcp-events.git`, `https://github.com/richardanaya/pi-mcp-events#readme`, `https://github.com/richardanaya/pi-mcp-events/issues`
+  - `pi-mcp-skills`: `git+https://github.com/richardanaya/pi-mcp-skills.git`, `https://github.com/richardanaya/pi-mcp-skills#readme`, `https://github.com/richardanaya/pi-mcp-skills/issues`
+  - `pi-mcp-tasks`: `git+https://github.com/richardanaya/pi-mcp-tasks.git`, `https://github.com/richardanaya/pi-mcp-tasks#readme`, `https://github.com/richardanaya/pi-mcp-tasks/issues`
+
 ## Repository layout
 
 ```
@@ -179,7 +235,7 @@ pi-mcp-apps/       apps host (index.ts, src/, tests/)
 pi-mcp-events/     events client (src/, test/)
 ```
 
-Each package has its own `package.json`, `tsconfig.json`, `README.md`, and `LICENSE`. Skills and tasks also have `.github/workflows/ci.yml` left from when they were separate repositories. This repository has no workflow at the root, so those nested files do not run on GitHub Actions here.
+Each package has its own `package.json`, `tsconfig.json`, `README.md`, and `LICENSE`. Differences in workspace setup, CI, lockfiles, dependency versions, typecheck scripts, and package metadata are listed under [Monorepo status](#monorepo-status).
 
 There is no compile step. Pi loads the TypeScript sources. `tsc` is typecheck only (`noEmit: true`).
 
