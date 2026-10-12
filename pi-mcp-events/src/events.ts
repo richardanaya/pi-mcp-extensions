@@ -17,6 +17,9 @@ export interface EventOccurrence {
 	cursor?: string | null;
 }
 
+/** SEP-3415 extension identifier. The legacy top-level `events` capability is not this key. */
+export const EVENTS_EXTENSION_ID = "io.modelcontextprotocol/events";
+
 const DELIVERY = new Set(["poll", "push", "webhook"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,9 +52,20 @@ export function parseEventOccurrence(value: unknown): EventOccurrence | undefine
 	};
 }
 
+/**
+ * SEP-3415 puts the identifier in `capabilities.extensions`. Prototypes advertised a top-level
+ * `events` key; that key is not part of the extension, and it is still accepted.
+ */
+export function serverOffersEvents(capabilities: Record<string, unknown> | undefined): boolean {
+	if (!capabilities) return false;
+	const extensions = capabilities.extensions;
+	if (isRecord(extensions) && EVENTS_EXTENSION_ID in extensions) return true;
+	return "events" in capabilities;
+}
+
 /** Follow `events/list` pages. Method-not-found means the server has no events. */
 export async function listEventTypes(session: EventSession, signal?: AbortSignal): Promise<EventTypeInfo[]> {
-	if (!("events" in session.discover.capabilities)) return [];
+	if (!serverOffersEvents(session.discover.capabilities)) return [];
 	const types: EventTypeInfo[] = [];
 	const seen = new Set<string>();
 	let cursor: string | undefined;

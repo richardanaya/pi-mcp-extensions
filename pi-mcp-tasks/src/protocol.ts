@@ -7,7 +7,7 @@
 export const TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks";
 export const CLIENT_CAPABILITIES_META = "io.modelcontextprotocol/clientCapabilities";
 
-/** Methods that must carry the tasks capability or the server returns -32003. */
+/** Methods that must carry the tasks capability or the server returns -32021 (Missing Required Client Capability). */
 export const CAPABILITY_METHODS = new Set([
   "tools/call",
   "tasks/get",
@@ -36,7 +36,8 @@ export const TERMINAL_STATUSES = new Set<SpecStatus>(["completed", "cancelled", 
  */
 export const DEFAULT_POLL_INTERVAL_MS = 1000;
 
-export const MISSING_CAPABILITY = -32003;
+/** Missing Required Client Capability. Core schema 2026-07-28 and the ext-tasks spec. */
+export const MISSING_CAPABILITY = -32021;
 export const INVALID_PARAMS = -32602;
 export const METHOD_NOT_FOUND = -32601;
 

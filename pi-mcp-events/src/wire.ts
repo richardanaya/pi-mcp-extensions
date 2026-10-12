@@ -8,6 +8,7 @@ import {
 	McpError,
 	type McpTransport,
 } from "@earendil-works/pi-mcp";
+import { EVENTS_EXTENSION_ID } from "./events.ts";
 
 /** Current MCP revision. Events in ChatGPT are defined on this version, not on `initialize`. */
 export const PROTOCOL_VERSION = "2026-07-28";
@@ -18,7 +19,9 @@ export function protocolMeta(): Record<string, unknown> {
 	return {
 		"io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
 		"io.modelcontextprotocol/clientInfo": CLIENT_INFO,
-		"io.modelcontextprotocol/clientCapabilities": {},
+		"io.modelcontextprotocol/clientCapabilities": {
+			extensions: { [EVENTS_EXTENSION_ID]: {} },
+		},
 	};
 }
 

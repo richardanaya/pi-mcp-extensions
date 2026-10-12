@@ -8,7 +8,7 @@ A skills server lists skill entries with `skills/list`. Each entry names a `SKIL
 
 ## Install
 
-Node 22. The peer dependency is `@earendil-works/pi-coding-agent` 1.0.1. The same hook also patches the bundled connection class current `pi` builds load from `dist/bundle/chunks/runtime-*.js`, which is what pi 1.1 uses.
+Node 22. The peer dependency is `@earendil-works/pi-coding-agent` 1.0.1. pi 1.1's CLI does not use the `McpClient` exported by `@earendil-works/pi-mcp`. It constructs the copy inlined under `dist/bundle/chunks/`, reached from `runtime-*.js`. The hook patches that class as well as the package export, so `initialize` from the CLI advertises `io.modelcontextprotocol/skills`. The chunk hash is not hard-coded; the hook follows the bundle's imports.
 
 ```bash
 pi install npm:pi-mcp-skills
@@ -35,7 +35,7 @@ The cache is in memory, keyed by server, URI, and digest. A cache hit is hashed 
 
 ## How lookup runs
 
-1. On startup the extension patches `McpClient.connect` and `McpServerConnection.connectOnce` / `getClient`. It patches both copies pi might construct: `dist/extensions/mcp/runtime.js`, and the class re-exported by `dist/bundle/chunks/runtime-*.js`. `initialize` gains `capabilities.extensions["io.modelcontextprotocol/skills"] = {}`. A connection that is already open is adopted on the next `getClient`. Each connection is handed to the skills host under `entry.name`, the host-assigned label.
+1. On startup the extension patches `McpClient.connect` and `McpServerConnection.connectOnce` / `getClient`. It patches the unbundled runtime at `dist/extensions/mcp/runtime.js` and the CLI bundle. `runtime-*.js` re-exports the connection. The `McpClient` that connection constructs lives in another chunk, not in `@earendil-works/pi-mcp`. The hook follows those imports and patches that class. `initialize` gains `capabilities.extensions["io.modelcontextprotocol/skills"] = {}`. A connection that is already open is adopted on the next `getClient`. Each connection is handed to the skills host under `entry.name`, the host-assigned label.
 2. If that server's `initialize` result does not declare the extension, the host stops. If it declares the extension and omits `resources`, the host records an error and does not call `skills/list`.
 3. Otherwise the host pages through `skills/list`, keeps valid entries, and records why the others were rejected. It subscribes to `notifications/resources/list_changed` and `notifications/skills/list_changed` and lists again when either arrives. `session_start` and `mcp_servers_change` forget extension-registered servers that disappeared. Servers that exist only in `mcp.json` stay until their connection closes, because `getMcpServers()` does not include them.
 4. `skills/get` is used when a URI was not on the fresh list, when the list's `ttlMs` has elapsed, and when fetched bytes do not match the manifest. A resources set that changed revokes the approval.
@@ -105,14 +105,14 @@ Source of truth: stable Skills extension, base protocol 2026-07-28. SEP-2640 Fin
 
 ### Readings and notes
 
-- **C03.** pi-mcp 1.0.1 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on the existing McpClient before initialize.
+- **C03.** pi-mcp 1.0.1 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on `McpClient.connect` before initialize, including the client class the pi 1.1 CLI bundle inlines.
 - **C09.** The Final SEP left caching attributes on skills/get open and required them on skills/list only for protocol 2026-07-28+. The stable spec requires them on both results. Older negotiated protocols may omit them; this client accepts that omission and still caches until a list-changed notification or until `ttlMs` elapses.
 - **C16.** Hosts MAY accept larger skills. This client stops at the published limits so every conforming server is loadable and anything beyond them is explained instead of failing on a later read.
 - **C23.** Rules read from the Agent Skills specification (1–64 lowercase unicode letters or digits, hyphens not leading, trailing, or doubled). If that specification changes incompatibly, this client still accepts the previous naming rules.
 - **C42.** pi 1.0.1 has no per-skill permission grant. This client never applies allowed-tools, so the field cannot widen access.
 - **C50.** There is no on-disk skill cache, so the disk-cache integrity and durable-origin rules are met by not writing one. Restarting pi drops the cache and the remembered approvals.
 - **C51.** The Final SEP and the stable spec do not define notifications/skills/list_changed. The working group previously pointed at resources/list_changed, and that is what pi's client already delivers. This client refreshes on that notification.
-- **C54.** ExtensionAPI has no request or notification method. The workaround patches `McpServerConnection.connectOnce`, `getClient`, and `McpClient.connect` on the unbundled runtime and on the bundled `runtime-*.js` re-export.
+- **C54.** ExtensionAPI has no request or notification method. The workaround patches `McpServerConnection.connectOnce`, `getClient`, and `McpClient.connect` on the unbundled runtime and on the inlined `McpClient` the bundled `runtime-*.js` graph constructs.
 
 - The stable spec mentions `server/discover` as the long-term way to negotiate extensions. pi 1.0.1 speaks `initialize` and stops at protocol `2025-11-25`, so this client reads the extension from the initialize capabilities and does not call `server/discover`.
 - pi's negotiated protocol is older than 2026-07-28, so a live server may omit `resultType`, `ttlMs`, and `cacheScope`. Those fields are required only when the negotiated version is 2026-07-28 or later. When they are present they are still checked.
