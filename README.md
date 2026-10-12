@@ -1,5 +1,7 @@
 # pi-mcp-extensions
 
+![pi-mcp-extensions: pi with Skills, Tasks, Apps and Events](docs/pi-mcp-extensions.jpg)
+
 [pi](https://github.com/earendil-works/pi) coding-agent extensions that add client support for MCP extensions. The standalone `pi-mcp-*` repositories are gone. This repository is the source for the four packages below. Each directory is published as its own npm package. Pi loads the TypeScript sources. There is no compile step.
 
 Skills, tasks, and apps send MCP requests through the client pi already connected. Events opens its own connection: `server/discover` first, then every request carries `io.modelcontextprotocol/protocolVersion: "2026-07-28"` in `_meta`. None of the packages register a slash command.
