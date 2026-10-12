@@ -12,41 +12,62 @@ function isRequest(message: JsonRpcMessage): message is JsonRpcRequest {
 
 const SECRET = `whsec_${Buffer.from("0123456789abcdef01234567").toString("base64")}`;
 
+const EVENT = { name: "comment.created", description: "review", delivery: ["webhook"], inputSchema: { type: "object" }, payloadSchema: { type: "object" } };
+
+async function sessionWith(capabilities: Record<string, unknown>, answerList: boolean) {
+	const { client: clientTransport, server } = createInMemoryTransportPair();
+	await server.start();
+	let listed = 0;
+	server.onMessage((message) => {
+		if (!isRequest(message)) return;
+		const meta = (message.params as { _meta?: Record<string, unknown> } | undefined)?._meta;
+		assert.equal(meta?.["io.modelcontextprotocol/protocolVersion"], PROTOCOL_VERSION);
+		const clientCaps = meta?.["io.modelcontextprotocol/clientCapabilities"] as { extensions?: Record<string, unknown> } | undefined;
+		assert.deepEqual(clientCaps?.extensions?.["io.modelcontextprotocol/events"], {});
+		if (message.method === "server/discover") {
+			void server.send({
+				jsonrpc: "2.0",
+				id: message.id,
+				result: {
+					resultType: "complete",
+					supportedVersions: [PROTOCOL_VERSION],
+					capabilities,
+					serverInfo: { name: "fixture", version: "0" },
+				},
+			});
+			return;
+		}
+		if (message.method === "events/list") {
+			listed += 1;
+			if (!answerList) return;
+			void server.send({ jsonrpc: "2.0", id: message.id, result: { events: [EVENT] } });
+		}
+	});
+	const session = await EventSession.open(clientTransport);
+	return { session, listed: () => listed };
+}
+
 describe("listEventTypes", () => {
-	it("discovers MCP 2026-07-28 and reads events/list", async () => {
-		const { client: clientTransport, server } = createInMemoryTransportPair();
-		await server.start();
-		server.onMessage((message) => {
-			if (!isRequest(message)) return;
-			const meta = (message.params as { _meta?: Record<string, string> } | undefined)?._meta;
-			assert.equal(meta?.["io.modelcontextprotocol/protocolVersion"], PROTOCOL_VERSION);
-			if (message.method === "server/discover") {
-				void server.send({
-					jsonrpc: "2.0",
-					id: message.id,
-					result: {
-						resultType: "complete",
-						supportedVersions: [PROTOCOL_VERSION],
-						capabilities: { tools: {}, events: {} },
-						serverInfo: { name: "fixture", version: "0" },
-					},
-				});
-				return;
-			}
-			if (message.method === "events/list") {
-				void server.send({
-					jsonrpc: "2.0",
-					id: message.id,
-					result: {
-						events: [{ name: "comment.created", description: "review", delivery: ["webhook"], inputSchema: { type: "object" }, payloadSchema: { type: "object" } }],
-					},
-				});
-			}
-		});
-		const session = await EventSession.open(clientTransport);
+	it("reads events/list when SEP-3415 advertises io.modelcontextprotocol/events", async () => {
+		const { session } = await sessionWith({ tools: {}, extensions: { "io.modelcontextprotocol/events": { listChanged: true } } }, true);
 		const types = await listEventTypes(session);
 		assert.equal(types[0]?.name, "comment.created");
 		assert.deepEqual(types[0]?.delivery, ["webhook"]);
+		await session.close();
+	});
+
+	it("still reads events/list when a prototype advertises a top-level events capability", async () => {
+		const { session } = await sessionWith({ tools: {}, events: {} }, true);
+		const types = await listEventTypes(session);
+		assert.equal(types[0]?.name, "comment.created");
+		await session.close();
+	});
+
+	it("does not call events/list when neither capability is present", async () => {
+		const { session, listed } = await sessionWith({ tools: {} }, false);
+		const types = await listEventTypes(session);
+		assert.deepEqual(types, []);
+		assert.equal(listed(), 0);
 		await session.close();
 	});
 });

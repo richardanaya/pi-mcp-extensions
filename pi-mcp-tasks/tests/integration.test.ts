@@ -47,7 +47,7 @@ describe("stdio tasks server", () => {
     const texts: string[] = [];
     await withStdio(false, async (_runtime, trace, client) => {
       await assert.rejects(() => client.callTool("complete_job", {}), (error: unknown) => {
-        assert.equal((error as { code?: number }).code, -32003);
+        assert.equal((error as { code?: number }).code, -32021);
         return true;
       });
       const watching = new TaskRuntime({

@@ -2,7 +2,9 @@
 
 A pi extension that manages MCP events on the servers `/mcp` already knows.
 
-Events are not part of the MCP specification. The written text is the [draft design sketch](https://github.com/modelcontextprotocol/experimental-ext-triggers-events/blob/main/docs/design-sketch-proposal.md). ChatGPT implements the webhook slice of that draft on protocol `2026-07-28`. This extension speaks that protocol and that slice, and it also calls poll and push when a server advertises them.
+[SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) (draft) is the Events extension, `io.modelcontextprotocol/events`. The identifier is a key in `capabilities.extensions`. This package reads that key. The earlier [design sketch](https://github.com/modelcontextprotocol/experimental-ext-triggers-events/blob/main/docs/design-sketch-proposal.md) still shows a top-level `events` capability. That key is not part of the extension, and this package still accepts it. ChatGPT implements the webhook slice of the draft on protocol `2026-07-28`. This extension speaks that protocol and that slice, and it also calls poll and push when a server advertises them.
+
+SEP-3415 lets a client declare the same identifier with an empty settings object in per-request capabilities. Every request this package sends does that.
 
 Pi's own MCP client does not implement events. It still uses the `2025-11-25` `initialize` handshake. This package opens its own connection: `server/discover` first, then every request carries `io.modelcontextprotocol/protocolVersion: "2026-07-28"` in `_meta`. A server that only speaks `2025-11-25` fails discovery and is reported as an error.
 

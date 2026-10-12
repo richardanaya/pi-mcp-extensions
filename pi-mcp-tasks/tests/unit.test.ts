@@ -7,6 +7,7 @@ import {
   classifyResult,
   formatTaskMessage,
   InvalidTaskResultError,
+  MISSING_CAPABILITY,
   prepareOutgoing,
   stripLegacyCapabilities,
   SUPPORTED_TASK_METHODS,
@@ -18,6 +19,12 @@ import {
 import { TaskRuntime, type RpcBinding } from "../src/runtime.ts";
 
 const CREATED = "1970-01-01T00:00:00.000Z";
+
+describe("error codes", () => {
+  it("uses Missing Required Client Capability from the 2026-07-28 schema", () => {
+    assert.equal(MISSING_CAPABILITY, -32021);
+  });
+});
 
 function snapshot(overrides: Partial<TaskSnapshot> = {}): TaskSnapshot {
   return {

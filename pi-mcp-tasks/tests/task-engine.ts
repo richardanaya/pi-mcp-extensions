@@ -4,7 +4,7 @@
  */
 
 import { appendFileSync } from "node:fs";
-import { TASKS_EXTENSION_ID } from "../src/protocol.ts";
+import { MISSING_CAPABILITY, TASKS_EXTENSION_ID } from "../src/protocol.ts";
 
 export interface EngineCall {
   method: string;
@@ -106,7 +106,7 @@ export class TaskEngine {
     }
     if (!TASK_TOOLS.has(name)) fail(-32602, `Unknown tool ${name}`);
     if (!hasTasksCapability(params)) {
-      fail(-32003, "Missing required client capability", {
+      fail(MISSING_CAPABILITY, "Missing required client capability", {
         requiredCapabilities: { extensions: { [TASKS_EXTENSION_ID]: {} } },
       });
     }
@@ -219,7 +219,7 @@ export class TaskEngine {
 
   private requireCapability(params: Record<string, unknown>): void {
     if (!hasTasksCapability(params)) {
-      fail(-32003, "Missing required client capability", {
+      fail(MISSING_CAPABILITY, "Missing required client capability", {
         requiredCapabilities: { extensions: { [TASKS_EXTENSION_ID]: {} } },
       });
     }

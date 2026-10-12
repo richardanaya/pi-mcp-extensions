@@ -4,10 +4,14 @@
  * pi 1.0.1 does not let an extension declare an extension capability at initialize, put `_meta`
  * on tools/call, set per-request HTTP headers, or send a custom method through a public API.
  * These patches use the client pi already constructed. They do not open a second connection.
+ *
+ * The `pi` CLI inlines McpClient inside `dist/bundle/chunks/`. That class is not the
+ * `@earendil-works/pi-mcp` export. `connect` is patched on both, or initialize from the CLI
+ * never advertises the tasks extension.
  */
 
-import { readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { prepareOutgoing, TASK_HEADER_METHODS, withInitializeExtensions } from "./protocol.ts";
@@ -65,7 +69,38 @@ async function ensurePatched(): Promise<void> {
   const located = await locate();
   patchConnect(located.mcp.McpClient as unknown as { prototype: PatchableClient });
   for (const Connection of located.connections) patchGetClient(Connection);
+  await patchBundledMcpClients(located.agentRoot);
   patched = true;
+}
+
+/** Patch McpClient classes the CLI bundle constructs and return them. */
+export async function patchBundledMcpClients(agentRoot: string): Promise<BundledMcpClient[]> {
+  const clients = await bundledMcpClients(agentRoot);
+  for (const Client of clients) patchConnect(Client);
+  return clients;
+}
+
+export async function bundledMcpClients(agentRoot: string): Promise<BundledMcpClient[]> {
+  const clients: BundledMcpClient[] = [];
+  const chunks = join(agentRoot, "dist/bundle/chunks");
+  let names: string[] = [];
+  try {
+    names = readdirSync(chunks);
+  } catch {
+    return clients;
+  }
+  for (const name of names) {
+    if (!/^runtime-.*\.js$/.test(name)) continue;
+    for (const Client of await inlinedMcpClients(join(chunks, name))) {
+      if (!clients.includes(Client)) clients.push(Client);
+    }
+  }
+  return clients;
+}
+
+export interface BundledMcpClient {
+  new (options?: { name?: string; version?: string; capabilities?: Record<string, unknown> }): PatchableClient;
+  prototype: PatchableClient;
 }
 
 function patchConnect(Client: { prototype: PatchableClient }): void {
@@ -142,6 +177,7 @@ export function armHeaders(client: PatchableClient): void {
 }
 
 interface Located {
+  agentRoot: string;
   mcp: typeof import("@earendil-works/pi-mcp");
   connections: ConnectionLike[];
 }
@@ -161,8 +197,10 @@ async function locateOnce(): Promise<Located> {
   const mcpUrl = import.meta.resolve("@earendil-works/pi-mcp", runtimeUrl);
   const mcp = (await import(mcpUrl)) as typeof import("@earendil-works/pi-mcp");
   const connections: ConnectionLike[] = [];
-  const unbundled = await import(pathToFileURL(runtimeJs).href) as { McpServerConnection?: ConnectionLike };
-  if (typeof unbundled.McpServerConnection === "function") connections.push(unbundled.McpServerConnection);
+  if (existsSync(runtimeJs)) {
+    const unbundled = (await import(pathToFileURL(runtimeJs).href)) as { McpServerConnection?: ConnectionLike };
+    if (typeof unbundled.McpServerConnection === "function") connections.push(unbundled.McpServerConnection);
+  }
   const chunks = join(agentRoot, "dist/bundle/chunks");
   let names: string[] = [];
   try {
@@ -173,11 +211,104 @@ async function locateOnce(): Promise<Located> {
   for (const name of names) {
     if (!/^runtime-.*\.js$/.test(name)) continue;
     try {
-      const bundled = await import(pathToFileURL(join(chunks, name)).href) as { McpServerConnection?: ConnectionLike };
+      const bundled = (await import(pathToFileURL(join(chunks, name)).href)) as { McpServerConnection?: ConnectionLike };
       if (typeof bundled.McpServerConnection === "function") connections.push(bundled.McpServerConnection);
     } catch {
       // The bundled CLI is optional. Per-request capability still applies to the SDK client.
     }
   }
-  return { mcp, connections };
+  return { agentRoot, mcp, connections };
+}
+
+const NAMED_IMPORT = /import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
+const SIDE_IMPORT = /import\s*["'](\.[^"']+)["']/g;
+const EXPORT_CLAUSE = /export\s*\{([^}]*)\}/g;
+const EXPORT_DECL = /export\s+(?:class|function)\s+([A-Za-z0-9_$]+)/g;
+
+/**
+ * Follow imports from `runtime-*.js` to the McpClient the bundle actually constructs.
+ * The chunk filename is hashed, so it is not hard-coded.
+ */
+async function inlinedMcpClients(runtimePath: string): Promise<BundledMcpClient[]> {
+  if (!runtimePath.includes(`${sep}bundle${sep}`)) return [];
+  const source = readSource(runtimePath);
+  if (source === undefined) return [];
+  const hrefs: string[] = [];
+  const push = (href: string) => {
+    if (!hrefs.includes(href)) hrefs.push(href);
+  };
+  for (const spec of specifierTargets(source, "McpClient")) push(resolveSpecifier(runtimePath, spec));
+  for (const spec of relativeSpecifiers(source)) {
+    const childHref = new URL(spec, pathToFileURL(runtimePath)).href;
+    const childPath = fileURLToPath(childHref);
+    const child = readSource(childPath);
+    if (child === undefined) continue;
+    if (exportsName(child, "McpClient")) push(childHref);
+    for (const inner of specifierTargets(child, "McpClient")) push(resolveSpecifier(childPath, inner));
+  }
+  const clients: BundledMcpClient[] = [];
+  for (const href of hrefs) {
+    const mod = (await import(href)) as { McpClient?: unknown };
+    if (isMcpClientClass(mod.McpClient) && !clients.includes(mod.McpClient)) clients.push(mod.McpClient);
+  }
+  return clients;
+}
+
+function readSource(file: string): string | undefined {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function specifierTargets(source: string, exportName: string): string[] {
+  const specs: string[] = [];
+  for (const match of source.matchAll(NAMED_IMPORT)) {
+    if (clauseNames(match[1]).includes(exportName)) specs.push(match[2]);
+  }
+  return specs;
+}
+
+function relativeSpecifiers(source: string): string[] {
+  const specs: string[] = [];
+  for (const match of source.matchAll(NAMED_IMPORT)) {
+    if (match[2].startsWith(".")) specs.push(match[2]);
+  }
+  for (const match of source.matchAll(SIDE_IMPORT)) specs.push(match[1]);
+  return specs;
+}
+
+function exportsName(source: string, name: string): boolean {
+  for (const match of source.matchAll(EXPORT_CLAUSE)) {
+    if (clauseNames(match[1]).includes(name)) return true;
+  }
+  for (const match of source.matchAll(EXPORT_DECL)) {
+    if (match[1] === name) return true;
+  }
+  return false;
+}
+
+function clauseNames(clause: string): string[] {
+  const names: string[] = [];
+  for (const part of clause.split(",")) {
+    const cleaned = part.trim().replace(/^type\s+/, "");
+    if (!cleaned) continue;
+    for (const bit of cleaned.split(/\s+as\s+/)) {
+      const name = bit.trim();
+      if (name) names.push(name);
+    }
+  }
+  return names;
+}
+
+function resolveSpecifier(fromFile: string, spec: string): string {
+  if (spec.startsWith(".")) return new URL(spec, pathToFileURL(fromFile)).href;
+  return import.meta.resolve(spec, pathToFileURL(fromFile).href);
+}
+
+function isMcpClientClass(value: unknown): value is BundledMcpClient {
+  if (typeof value !== "function") return false;
+  const proto = (value as { prototype?: { connect?: unknown } }).prototype;
+  return typeof proto?.connect === "function";
 }

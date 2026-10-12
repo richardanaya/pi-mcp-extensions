@@ -55,7 +55,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Advertise the extension from the client during initialize (SEP-2133). An empty settings object means support with no client-specific settings.",
     status: "implemented",
     test: "tests/unit.test.ts C03",
-    note: "pi-mcp 1.0.1 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on the existing McpClient before initialize.",
+    note: "pi-mcp 1.0.1 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on McpClient.connect before initialize, including the client class the pi 1.1 CLI bundle inlines.",
   },
   {
     id: "C04",
@@ -470,7 +470,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Send skills and resource requests through the MCP client pi already connected. Do not open a second client for the same server.",
     status: "implemented",
     test: "tests/integration.test.ts C54",
-    note: "ExtensionAPI in pi 1.0.1 has no request or notification method. The workaround patches McpServerConnection.connectOnce and McpClient.connect on the module instance the built-in MCP extension uses.",
+    note: "ExtensionAPI in pi 1.0.1 has no request or notification method. The workaround patches McpServerConnection.connectOnce, getClient, and McpClient.connect on the unbundled runtime and on the inlined McpClient the bundled runtime-*.js graph constructs.",
   },
   {
     id: "C55",

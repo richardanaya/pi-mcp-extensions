@@ -47,7 +47,7 @@ After `ui/notifications/initialized`, the host sends `ui/notifications/tool-inpu
 
 ## Install
 
-Node 22 or newer. Peer dependency `@earendil-works/pi-coding-agent` 1.0.1. The hook also patches the running Pi 1.1 bundle at `dist/bundle/chunks/runtime-*.js`.
+Node 22 or newer. Peer dependency `@earendil-works/pi-coding-agent` 1.0.1. pi 1.1's CLI inlines `McpClient` in a chunk reached from `dist/bundle/chunks/runtime-*.js`. That class is not the `@earendil-works/pi-mcp` export. The hook follows the bundle's imports and patches the class the CLI constructs, so `initialize` advertises `io.modelcontextprotocol/ui`. The chunk hash is not hard-coded.
 
 ```bash
 pi install npm:pi-mcp-apps

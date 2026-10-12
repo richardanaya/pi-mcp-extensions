@@ -1,14 +1,14 @@
 # pi-mcp-tasks
 
-Client for [SEP-2663](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/02dd8f61/seps/2663-tasks-extension.md), the MCP Tasks extension (`io.modelcontextprotocol/tasks`), as a [pi](https://github.com/earendil-works/pi) extension.
+Client for the [MCP Tasks extension](https://github.com/modelcontextprotocol/ext-tasks/blob/899c1bbc869567670093face3591b39c28ce3219/specification/2026-07-28/tasks.md) (`io.modelcontextprotocol/tasks`), as a [pi](https://github.com/earendil-works/pi) extension. The extension was introduced by [SEP-2663](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2663).
 
 A tool call can return a task handle instead of a finished result. This extension tells the server that pi supports tasks, polls `tasks/get` until the task ends, and puts the result, error, or cancellation back into the conversation so the model sees it. It uses the MCP servers already registered with pi. It does not open a second connection.
 
-The pinned spec is commit `02dd8f61`. The extension follows the migration rules from the legacy 2025-11-25 tasks protocol: it never calls `tasks/result`, never sends the legacy `task` parameter, and never advertises `tasks.requests`, `tasks.list`, or `tasks.cancel`.
+The pinned spec is ext-tasks `899c1bbc869567670093face3591b39c28ce3219`, `specification/2026-07-28/tasks.md`. A missing required client capability is JSON-RPC `-32021` (Missing Required Client Capability), the code in that spec and in the core `2026-07-28` schema. The extension follows the migration rules from the legacy 2025-11-25 tasks protocol: it never calls `tasks/result`, never sends the legacy `task` parameter, and never advertises `tasks.requests`, `tasks.list`, or `tasks.cancel`.
 
 ## Install
 
-Node 22. The peer dependency is `@earendil-works/pi-coding-agent` 1.0.1. The hook also patches the bundled connection class in `dist/bundle/chunks/runtime-*.js`, which is what pi 1.1 loads.
+Node 22. The peer dependency is `@earendil-works/pi-coding-agent` 1.0.1. The hook patches the connection class in `dist/bundle/chunks/runtime-*.js` and the `McpClient` that class constructs. pi 1.1 inlines that client in a bundle chunk, separate from `@earendil-works/pi-mcp`, so patching only the package export does not change `initialize`.
 
 ```bash
 pi install npm:pi-mcp-tasks
@@ -104,7 +104,7 @@ The spec leaves these points open. This is the reading the code uses.
 - **`tasks/get` without `resultType`.** A snapshot with a task id and a known status is accepted. The spec says `tasks/get` results use `resultType: "complete"`, which is not a create result, so it is not treated as a new task.
 - **Elicitation content.** The spec's example sends `{ "input": "Luca" }` while `requestedSchema` asks for `{ name }`. Submitted content matches `requestedSchema`. The user confirms before accept. Declining leaves the key pending and tells the user to call `mcp_tasks_respond`. URL elicitation shows the URL and confirms completion. Sampling wraps the user's text as an assistant text result (`model: "user"`, `stopReason: "endTurn"`).
 - **Cancel.** `tasks/cancel` is sent, polling stops, answered keys are cleared, and the conversation gets a cancellation-requested message. A later terminal `notifications/tasks` can replace that outcome.
-- **Capability placement.** The normative client signal is the per-request `_meta` object. Initialize `capabilities.extensions` is sent in addition when `McpClient.connect` is the class pi's unbundled runtime uses. Legacy `capabilities.tasks` is removed from that initialize payload.
+- **Capability placement.** The normative client signal is the per-request `_meta` object. Initialize `capabilities.extensions` is sent as well, on the `@earendil-works/pi-mcp` client and on the client class the bundled CLI constructs. Legacy `capabilities.tasks` is removed from that initialize payload.
 - **HTTP headers.** `Mcp-Name` is the task id and `Mcp-Method` is the JSON-RPC method, and only on `tasks/get`, `tasks/update`, and `tasks/cancel`. Stdio does not send them.
 - **Unknown status.** A status outside `working | input_required | completed | cancelled | failed` is a protocol failure. It retries, then becomes `disconnected`.
 
@@ -114,7 +114,7 @@ pi's public extension API cannot do four things this protocol needs. The workaro
 
 | Gap | Workaround |
 | --- | --- |
-| `ClientCapabilities` has no `extensions` field, and nothing lets an extension add one at initialize. | Wrap `McpClient.prototype.connect` on the module resolved from `runtime.js` and add the tasks extension there. The bundled CLI inlines its own `McpClient`, so that initialize patch does not apply to `pi`'s single-file binary. Per-request `_meta` still does, because the bundled connection class is patched. |
+| `ClientCapabilities` has no `extensions` field, and nothing lets an extension add one at initialize. | Wrap `McpClient.prototype.connect` on the `@earendil-works/pi-mcp` export and on the `McpClient` the bundled runtime imports. pi 1.1 inlines that class in a chunk reached from `dist/bundle/chunks/runtime-*.js`; the chunk hash is not hard-coded. Both initialize payloads gain the tasks extension. |
 | `tools/call` sends only `name` and `arguments`. There is no hook to add `_meta`. | Wrap `client.request` after `getClient()`. |
 | There is no public `pi.mcpRequest`. | `tasks/get`, `tasks/update`, `tasks/cancel`, `server/discover`, and `subscriptions/listen` go through that same `client.request`. The binding calls the original `getClient` so the wrap does not recurse. |
 | Streamable HTTP builds headers inside the transport, with no per-request hook. | Replace `transport.headers` for the duration of those three methods, under `AsyncLocalStorage`, so concurrent calls do not share a task id. |
