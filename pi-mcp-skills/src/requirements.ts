@@ -1,7 +1,7 @@
 /**
  * Client and lookup requirements from SEP-2640 (Final, PR #2640 merged 2026-09-13)
  * and the stable Skills extension specification that superseded it
- * (ext-skills `specification/stable/skills.mdx`, base protocol 2026-07-28).
+ * (ext-skills `specification/stable/skills.mdx` at commit 4ad2d3a, PR #157, base protocol 2026-07-28).
  *
  * Where the two disagree, the stable specification is the source of truth and the
  * difference is recorded on the requirement. Server-only obligations are included
@@ -26,7 +26,7 @@ export const SPEC = {
   sepStatus: "Final",
   sepMerged: "2026-09-13",
   stable: "https://skills.extensions.modelcontextprotocol.io/specification/stable/skills",
-  stableSource: "modelcontextprotocol/ext-skills specification/stable/skills.mdx",
+  stableSource: "modelcontextprotocol/ext-skills specification/stable/skills.mdx@4ad2d3a",
   baseProtocol: "2026-07-28",
   extensionId: "io.modelcontextprotocol/skills",
 } as const;
@@ -55,7 +55,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Advertise the extension from the client during initialize (SEP-2133). An empty settings object means support with no client-specific settings.",
     status: "implemented",
     test: "tests/unit.test.ts C03",
-    note: "pi-mcp 1.0.1 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on McpClient.connect before initialize, including the client class the pi 1.1 CLI bundle inlines.",
+    note: "pi-mcp 1.3.0 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on McpClient.connect before initialize, including the client class the pi CLI bundle inlines. pi 1.3.0 still reaches that class from dist/bundle/chunks/runtime-*.js.",
   },
   {
     id: "C04",
@@ -101,10 +101,10 @@ export const REQUIREMENTS: readonly Requirement[] = [
     id: "C09",
     level: "MUST",
     section: "Listing",
-    text: "On protocol 2026-07-28 and later, require resultType complete plus ttlMs and cacheScope on skills/list and skills/get. Honor them as a freshness hint and a scope marker, not as an integrity check.",
+    text: "On protocol 2026-07-28 and later, require resultType complete plus ttlMs and cacheScope on skills/list, skills/get, and resources/directory/read. Honor them as a freshness hint and a scope marker, not as an integrity check.",
     status: "implemented",
     test: "tests/unit.test.ts C09",
-    note: "The Final SEP left caching attributes on skills/get open and required them on skills/list only for protocol 2026-07-28+. The stable spec requires them on both results. Older negotiated protocols may omit them; this client accepts that omission and still caches until a list-changed notification or until ttlMs elapses.",
+    note: "ext-skills 4ad2d3a (PR #157) made ReadResourceDirectoryResult extend CacheableResult, so directory reads now require ttlMs and cacheScope the same way skills/list and skills/get already did. Older negotiated protocols may omit them. A directory listing that includes ttlMs is reused until that hint elapses; an omission is tolerated and the directory is read again. cacheScope is stored and is not an integrity check.",
   },
   {
     id: "C10",
@@ -470,7 +470,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Send skills and resource requests through the MCP client pi already connected. Do not open a second client for the same server.",
     status: "implemented",
     test: "tests/integration.test.ts C54",
-    note: "ExtensionAPI in pi 1.0.1 has no request or notification method. The workaround patches McpServerConnection.connectOnce, getClient, and McpClient.connect on the unbundled runtime and on the inlined McpClient the bundled runtime-*.js graph constructs.",
+    note: "ExtensionAPI in pi 1.3.0 has no request or notification method. The workaround patches McpServerConnection.connectOnce, getClient, and McpClient.connect on the unbundled runtime and on the inlined McpClient the bundled runtime-*.js graph constructs.",
   },
   {
     id: "C55",
@@ -479,6 +479,24 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Surface skill URIs mentioned in server instructions as references. They are not registry entries until skills/get confirms them.",
     status: "implemented",
     test: "tests/unit.test.ts C55",
+  },
+  {
+    id: "C56",
+    level: "MUST",
+    section: "Request metadata",
+    text: "Every skills/list, skills/get, resources/read, and resources/directory/read request includes params._meta. When the connection negotiated a protocol version, that version is io.modelcontextprotocol/protocolVersion. clientCapabilities is always present and advertises this extension.",
+    status: "implemented",
+    test: "tests/unit.test.ts C56",
+    note: "ext-skills 4ad2d3a gave skills/get and resources/directory/read named params interfaces on which _meta is required. The page already said every request MUST include it. pi 1.3.0 McpClient.request does not add protocol _meta (it only merges progressToken). This client adds the fields. The version is the negotiated one, so it matches the MCP-Protocol-Version header pi's transport sends. pi 1.3.0 still negotiates 2025-11-25, not 2026-07-28. clientInfo is included. ListSkillsResultResponse, GetSkillResultResponse, and ReadResourceDirectoryResultResponse are the JSON-RPC envelopes; this client reads the result object after that unwrap.",
+  },
+  {
+    id: "C57",
+    level: "MAY",
+    section: "Skill entries",
+    text: "A Skill entry may carry optional _meta. Keep it when it is an object. Do not require it. Reject an entry whose _meta is not an object.",
+    status: "implemented",
+    test: "tests/unit.test.ts C57",
+    note: "ext-skills 4ad2d3a added optional _meta to Skill, matching Resource, Tool, and Prompt. Keys this extension defines use the io.modelcontextprotocol.skills/ prefix. This client does not interpret those keys.",
   },
 ];
 

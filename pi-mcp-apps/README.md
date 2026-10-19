@@ -14,7 +14,9 @@ During MCP `initialize`, the client advertises:
 { "io.modelcontextprotocol/ui": { "mimeTypes": ["text/html;profile=mcp-app"] } }
 ```
 
-When Pi reports `hasUI` and a tool result comes from a tool whose `_meta.ui.resourceUri` is a `ui://` resource, the extension reads that resource and hosts the page. It does not launch a browser. The deprecated flat `_meta["ui/resourceUri"]` key is still accepted. `mcp_apps_open` hosts a URI you name. HTML may arrive as `text` or base64 `blob`. The MIME type must be `text/html;profile=mcp-app`.
+When Pi reports `hasUI` and a tool result comes from a tool whose `_meta.ui.resourceUri` is a `ui://` resource, the extension reads that resource with `resources/read` and hosts the page. It does not call `resources/list`, and it does not need pi to have listed resources at connect. pi 1.3.0 records the resources capability (`pi mcp list --json` reports `resources: true`) and does not list resources while connecting. The extension does not launch a browser. The deprecated flat `_meta["ui/resourceUri"]` key is still accepted. `mcp_apps_open` hosts a URI you name. HTML may arrive as `text` or base64 `blob`. The MIME type must be `text/html;profile=mcp-app`.
+
+pi 1.3.0 accepts a non-object `structuredContent` on an MCP `tools/call` result. This host does not re-check that field. A `tools/call` from a view is returned to the view as the server sent it. `ui/update-model-context` still requires `structuredContent` to be an object when it is present, which is the Apps host message rather than the MCP tool result.
 
 The words "Open MCP App" are drawn under the tool call as a clickable link only when Pi reports `hasUI`. Console and print mode leave the tool result unchanged and do not host a page for it. `mcp_apps_open` still returns a URL when called.
 
@@ -47,7 +49,7 @@ After `ui/notifications/initialized`, the host sends `ui/notifications/tool-inpu
 
 ## Install
 
-Node 22 or newer. Peer dependency `@earendil-works/pi-coding-agent` 1.0.1. pi 1.1's CLI inlines `McpClient` in a chunk reached from `dist/bundle/chunks/runtime-*.js`. That class is not the `@earendil-works/pi-mcp` export. The hook follows the bundle's imports and patches the class the CLI constructs, so `initialize` advertises `io.modelcontextprotocol/ui`. The chunk hash is not hard-coded.
+Node 22 or newer. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.3.0, the release this package is tested against. pi's CLI inlines `McpClient` in a chunk reached from `dist/bundle/chunks/runtime-*.js`. That layout is unchanged in 1.3.0, and that class is not the `@earendil-works/pi-mcp` export. The hook follows the bundle's imports and patches the class the CLI constructs, so `initialize` advertises `io.modelcontextprotocol/ui`. The chunk hash is not hard-coded. `mcp_apps_open` does not set `reachesTools`. It calls the MCP client pi already connected, after that connection exists.
 
 ```bash
 pi install npm:pi-mcp-apps
