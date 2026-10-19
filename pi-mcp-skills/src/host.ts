@@ -25,6 +25,7 @@ import {
   skillRoot,
   unrecognizedMetadataKeys,
   validateSkill,
+  withRequestMeta,
 } from "./model.ts";
 
 export interface CatalogEntry {
@@ -71,6 +72,13 @@ export interface PresentedSkill {
   mediaType: "skill" | "resource" | "directory";
 }
 
+interface DirectoryCache {
+  children: DirectoryChild[];
+  ttlMs: number;
+  cacheScope?: string;
+  fetchedAt: number;
+}
+
 interface ServerState {
   port: McpPort;
   protocolVersion: string | undefined;
@@ -84,6 +92,8 @@ interface ServerState {
   listError?: string;
   unsubs: (() => void)[];
   dynamicBytes: Map<string, number>;
+  /** Directory listings reused only while their own ttlMs has not elapsed. */
+  directories: Map<string, DirectoryCache>;
 }
 
 interface HeldSkill {
@@ -144,6 +154,7 @@ export class SkillsHost {
       rejected: [],
       unsubs: [],
       dynamicBytes: new Map(),
+      directories: new Map(),
     };
     if (!settings.resources) {
       state.listError = `${server} declares ${EXTENSION_ID} but not the resources capability`;
@@ -361,25 +372,50 @@ export class SkillsHost {
   }
 
   private async readDirectory(state: ServerState, uri: string): Promise<DirectoryChild[]> {
+    const cached = state.directories.get(uri);
+    if (cached && this.now() - cached.fetchedAt < cached.ttlMs) return cached.children;
     const children: DirectoryChild[] = [];
     let cursor: string | undefined;
+    let ttlMs: number | undefined;
+    let cacheScope: string | undefined;
     const seen = new Set<string>();
     for (let page = 0; page < MAX_PAGES; page++) {
       let result: unknown;
       try {
-        result = await state.port.request("resources/directory/read", cursor ? { uri, cursor } : { uri });
+        result = await this.rpc(state, "resources/directory/read", cursor ? { uri, cursor } : { uri });
       } catch (error) {
         throw rpcFailure(error);
       }
-      const parsed = parseDirectoryResult(result, state.protocolVersion);
+      const parsed = parseDirectoryResult(result, state.port.protocolVersion());
       if ("error" in parsed) throw new SkillsFailure(parsed.error);
+      if (page === 0) {
+        ttlMs = parsed.ttlMs;
+        cacheScope = parsed.cacheScope;
+      }
       children.push(...parsed.resources);
-      if (!parsed.nextCursor) return children;
+      if (!parsed.nextCursor) {
+        if (ttlMs !== undefined) {
+          state.directories.set(uri, {
+            children,
+            ttlMs,
+            fetchedAt: this.now(),
+            ...(cacheScope === undefined ? {} : { cacheScope }),
+          });
+        } else {
+          state.directories.delete(uri);
+        }
+        return children;
+      }
       if (seen.has(parsed.nextCursor)) throw new SkillsFailure("resources/directory/read repeated nextCursor");
       seen.add(parsed.nextCursor);
       cursor = parsed.nextCursor;
     }
     throw new SkillsFailure("resources/directory/read exceeded the page limit");
+  }
+
+  /** pi does not attach protocol `_meta`. Use the version the connection negotiated. */
+  private rpc(state: ServerState, method: string, params?: Record<string, unknown>): Promise<unknown> {
+    return state.port.request(method, withRequestMeta(params, state.port.protocolVersion()));
   }
 
   private absoluteUri(server: string, uri: string, skillRef: string | undefined): string {
@@ -449,11 +485,11 @@ export class SkillsHost {
     }
     let result: unknown;
     try {
-      result = await state.port.request("skills/get", { uri });
+      result = await this.rpc(state, "skills/get", { uri });
     } catch (error) {
       throw rpcFailure(error);
     }
-    const parsed = parseGetResult(result, state.protocolVersion);
+    const parsed = parseGetResult(result, state.port.protocolVersion());
     if ("error" in parsed) throw new SkillsFailure(parsed.error);
     const skill = parseSkill(parsed.skill);
     if ("error" in skill) throw new SkillsFailure(skill.error);
@@ -476,7 +512,7 @@ export class SkillsHost {
     if (cached) return cached;
     let result: unknown;
     try {
-      result = await state.port.request("resources/read", { uri });
+      result = await this.rpc(state, "resources/read", { uri });
     } catch (error) {
       throw rpcFailure(error);
     }
@@ -600,10 +636,11 @@ export class SkillsHost {
     let ttlMs: number | undefined;
     let cacheScope: string | undefined;
     const seen = new Set<string>();
+    state.directories.clear();
     try {
       for (let page = 0; page < MAX_PAGES; page++) {
-        const result = await state.port.request("skills/list", cursor ? { cursor } : {});
-        const parsed = parseListResult(result, state.protocolVersion);
+        const result = await this.rpc(state, "skills/list", cursor ? { cursor } : {});
+        const parsed = parseListResult(result, state.port.protocolVersion());
         if ("error" in parsed) throw new SkillsFailure(parsed.error);
         if (page === 0) {
           ttlMs = parsed.ttlMs;

@@ -6,7 +6,9 @@ A pi extension that manages MCP events on the servers `/mcp` already knows.
 
 SEP-3415 lets a client declare the same identifier with an empty settings object in per-request capabilities. Every request this package sends does that.
 
-Pi's own MCP client does not implement events. It still uses the `2025-11-25` `initialize` handshake. This package opens its own connection: `server/discover` first, then every request carries `io.modelcontextprotocol/protocolVersion: "2026-07-28"` in `_meta`. A server that only speaks `2025-11-25` fails discovery and is reported as an error.
+Pi's own MCP client does not implement events. pi 1.3.0 still requests protocol `2025-11-25` during `initialize` and also accepts `2025-06-18`, `2025-03-26`, and `2024-11-05`. It does not offer `2026-07-28`. This package opens its own connection: `server/discover` first, then every request carries `io.modelcontextprotocol/protocolVersion: "2026-07-28"` in `_meta`. A server that only speaks `2025-11-25` fails discovery and is reported as an error.
+
+On Streamable HTTP, SEP-3415 (draft, head `2ec39b9`) requires routing headers from SEP-2243. pi-mcp 1.3.0's `StreamableHttpTransport` sets `MCP-Protocol-Version` and does not set `Mcp-Method` or `Mcp-Name`. This package sets them on the way out: `Mcp-Method` is the JSON-RPC method on every request, and `Mcp-Name` is `params.name` for `events/poll`, `events/stream`, `events/subscribe`, and `events/unsubscribe`. A name that is not a safe plain ASCII header value is sent as `=?base64?{base64}?=`. `events/list` and `server/discover` carry no `Mcp-Name`. A missing or mismatched header is HTTP 400 and `HeaderMismatch` (`-32020`). Stdio has no such headers. The conformance drafts for this extension are [server PR #521](https://github.com/modelcontextprotocol/conformance/pull/521) and [client PR #541](https://github.com/modelcontextprotocol/conformance/pull/541).
 
 ## What is supported
 
@@ -68,6 +70,6 @@ Add the package path to pi's `extensions` setting (the package entry is `./src/i
 pi install npm:pi-mcp-events
 ```
 
-The published package is the TypeScript sources pi loads. Version 0.1.1.
+The published package is the TypeScript sources pi loads. Version 0.1.1. It depends on `@earendil-works/pi-coding-agent` and `@earendil-works/pi-mcp` at 1.3.0, because it constructs its own transports from pi-mcp. The peer dependency on `@earendil-works/pi-coding-agent` is the same exact pin the other packages in this repo use.
 
 `npm publish` runs the tests through `prepublishOnly`.

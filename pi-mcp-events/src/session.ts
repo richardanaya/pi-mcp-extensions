@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { McpError, StdioTransport, StreamableHttpTransport } from "@earendil-works/pi-mcp";
 import { resolveAuth } from "./auth.ts";
 import { type EventOccurrence, listEventTypes, parseEventOccurrence } from "./events.ts";
+import { fetchWithEventRouting } from "./headers.ts";
 import { armTimeout, EventSession } from "./wire.ts";
 import { expandEnv, isHttpServer, type DiscoveredServer, type ServerConfig } from "./servers.ts";
 
@@ -41,6 +42,7 @@ async function openServer(
 	const transport = isHttpServer(server.config)
 		? new StreamableHttpTransport({
 				url: server.config.url,
+				fetch: fetchWithEventRouting(),
 				...(resolved.headers ? { headers: resolved.headers } : {}),
 				...(resolved.authProvider ? { authProvider: resolved.authProvider } : {}),
 			})

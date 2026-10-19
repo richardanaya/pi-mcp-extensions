@@ -12,6 +12,7 @@ import {
   MAX_RESOURCES,
   MAX_SKILL_BYTES,
   parseFrontmatter,
+  parseSkill,
   protocolRequiresCacheFields,
   resolveReference,
   skillPath,
@@ -239,6 +240,64 @@ test("C09 cache fields are required on 2026-07-28 and are a freshness hint", asy
   const oldHost = hostOf(old);
   await oldHost.attach("old", old);
   assert.equal(oldHost.catalog().length, 1);
+
+  let reads = 0;
+  let clock = 5_000;
+  const directory = new FakePort(
+    skillsCapabilities(true),
+    (method) => {
+      if (method === "skills/list") return { skills: [entry], ...cacheFields(60_000) };
+      if (method === "resources/directory/read") {
+        reads += 1;
+        return { resources: [{ uri, name: "SKILL.md" }], ...cacheFields(1_000) };
+      }
+      throw new Error(method);
+    },
+    undefined,
+    "2026-07-28",
+  );
+  const directoryHost = new SkillsHost({ now: () => clock });
+  await directoryHost.attach("skills", directory);
+  await directoryHost.directory("skills", "skill://demo", uri, allow);
+  await directoryHost.directory("skills", "skill://demo", uri, allow);
+  assert.equal(reads, 1);
+  clock = 6_000;
+  await directoryHost.directory("skills", "skill://demo", uri, allow);
+  assert.equal(reads, 2);
+
+  const bareDirectory = new FakePort(
+    skillsCapabilities(true),
+    (method) => {
+      if (method === "skills/list") return { skills: [entry], ...cacheFields() };
+      if (method === "resources/directory/read") return { resources: [], resultType: "complete" };
+      throw new Error(method);
+    },
+    undefined,
+    "2026-07-28",
+  );
+  const bareHost = hostOf(bareDirectory);
+  await bareHost.attach("bare", bareDirectory);
+  await assert.rejects(() => bareHost.directory("bare", "skill://demo", uri, allow), /ttlMs/);
+
+  let legacyReads = 0;
+  const legacyDirectory = new FakePort(
+    skillsCapabilities(true),
+    (method) => {
+      if (method === "skills/list") return { skills: [entry] };
+      if (method === "resources/directory/read") {
+        legacyReads += 1;
+        return { resources: [{ uri, name: "SKILL.md" }], resultType: "complete" };
+      }
+      throw new Error(method);
+    },
+    undefined,
+    "2025-11-25",
+  );
+  const legacyHost = hostOf(legacyDirectory);
+  await legacyHost.attach("legacy", legacyDirectory);
+  await legacyHost.directory("legacy", "skill://demo", uri, allow);
+  await legacyHost.directory("legacy", "skill://demo", uri, allow);
+  assert.equal(legacyReads, 2);
 });
 
 test("C10 colliding names are kept and disambiguated by path", async () => {
@@ -949,6 +1008,59 @@ test("C50 the memory cache leaves with the server", async () => {
   await host.attach("skills", port);
   await host.show("skills", uri);
   assert.equal(port.calls.filter((call) => call.method === "resources/read").length, 2);
+});
+
+test("C56 requests carry negotiated _meta and client capabilities", async () => {
+  const file = skillDocument("demo", "A demo skill");
+  const uri = "skill://demo/SKILL.md";
+  const entry = listedSkill(uri, "demo", "A demo skill", file);
+  const port = new FakePort(
+    skillsCapabilities(true),
+    (method) => {
+      if (method === "skills/list") return { skills: [entry], ...cacheFields() };
+      if (method === "skills/get") return { skill: entry, ...cacheFields() };
+      if (method === "resources/read") return readResult(uri, file.text);
+      if (method === "resources/directory/read") return { resources: [{ uri, name: "SKILL.md" }], ...cacheFields() };
+      throw new Error(method);
+    },
+    undefined,
+    "2025-11-25",
+  );
+  const host = hostOf(port);
+  await attach(host, "skills", port);
+  await host.show("skills", "skill://missing/SKILL.md");
+  await host.directory("skills", "skill://demo", uri, allow);
+  const methods = ["skills/list", "skills/get", "resources/read", "resources/directory/read"];
+  for (const method of methods) {
+    const call = port.calls.find((item) => item.method === method);
+    const meta = call?.params?._meta as Record<string, unknown> | undefined;
+    assert.equal(meta?.["io.modelcontextprotocol/protocolVersion"], "2025-11-25", method);
+    assert.deepEqual(meta?.["io.modelcontextprotocol/clientInfo"], { name: "pi-mcp-skills", version: "0.1.0" });
+    const caps = meta?.["io.modelcontextprotocol/clientCapabilities"] as { extensions?: Record<string, unknown> };
+    assert.deepEqual(caps.extensions?.[EXTENSION_ID], {});
+  }
+  const unset = new FakePort(skillsCapabilities(), (method) => {
+    if (method === "skills/list") return { skills: [entry] };
+    throw new Error(method);
+  });
+  const unsetHost = hostOf(unset);
+  await unsetHost.attach("unset", unset);
+  const meta = unset.calls[0]?.params?._meta as Record<string, unknown>;
+  assert.equal(meta["io.modelcontextprotocol/protocolVersion"], undefined);
+  assert.ok(meta["io.modelcontextprotocol/clientCapabilities"]);
+});
+
+test("C57 optional skill _meta is kept and a non-object is rejected", () => {
+  const file = skillDocument("demo", "A demo skill");
+  const entry = listedSkill("skill://demo/SKILL.md", "demo", "A demo skill", file);
+  const parsed = parseSkill({ ...entry, _meta: { "io.modelcontextprotocol.skills/note": "kept" } });
+  assert.equal("skill" in parsed, true);
+  if (!("skill" in parsed)) return;
+  assert.equal(parsed.skill._meta?.["io.modelcontextprotocol.skills/note"], "kept");
+  const absent = parseSkill(entry);
+  assert.equal("skill" in absent && absent.skill._meta, undefined);
+  const bad = parseSkill({ ...entry, _meta: ["nope"] });
+  assert.equal("error" in bad, true);
 });
 
 test("C55 instruction URIs are references until skills/get", async () => {

@@ -188,7 +188,7 @@ server.setRequestHandler(schema("resources/directory/read"), (request) => {
   return {
     resources: child ? [child] : [],
     ...(next === undefined ? {} : { nextCursor: next }),
-    resultType: "complete" as const,
+    ...cache,
   };
 });
 

@@ -29,7 +29,16 @@ export interface Skill {
   uri: string;
   frontmatter: { name: string; description: string; [key: string]: unknown };
   resources: SkillResource[] | "dynamic";
+  /** Optional. Keys this extension defines use the `io.modelcontextprotocol.skills/` prefix. */
+  _meta?: Record<string, unknown>;
 }
+
+/** Required request metadata from the 2026-07-28 base schema. pi's client does not add these. */
+export const PROTOCOL_VERSION_META = "io.modelcontextprotocol/protocolVersion";
+export const CLIENT_INFO_META = "io.modelcontextprotocol/clientInfo";
+export const CLIENT_CAPABILITIES_META = "io.modelcontextprotocol/clientCapabilities";
+
+export const SKILLS_CLIENT_INFO = { name: "pi-mcp-skills", version: "0.1.0" } as const;
 
 export interface McpPort {
   request(method: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -248,8 +257,10 @@ export function parseSkill(value: unknown): { skill: Skill } | { error: string }
     return { error: `${value.uri} frontmatter needs name and description strings` };
   }
   if (!Object.hasOwn(value, "resources")) return { error: `${value.uri} is missing resources` };
+  const meta = skillMeta(value, value.uri);
+  if ("error" in meta) return meta;
   if (value.resources === "dynamic") {
-    return { skill: { uri: value.uri, frontmatter: value.frontmatter as Skill["frontmatter"], resources: "dynamic" } };
+    return { skill: { uri: value.uri, frontmatter: value.frontmatter as Skill["frontmatter"], resources: "dynamic", ...meta.meta } };
   }
   if (!Array.isArray(value.resources)) return { error: `${value.uri} resources must be an array or "dynamic"` };
   const resources: SkillResource[] = [];
@@ -259,7 +270,37 @@ export function parseSkill(value: unknown): { skill: Skill } | { error: string }
     }
     resources.push({ uri: item.uri, digest: item.digest, size: item.size });
   }
-  return { skill: { uri: value.uri, frontmatter: value.frontmatter as Skill["frontmatter"], resources } };
+  return { skill: { uri: value.uri, frontmatter: value.frontmatter as Skill["frontmatter"], resources, ...meta.meta } };
+}
+
+function skillMeta(value: Record<string, unknown>, uri: string): { meta: { _meta?: Record<string, unknown> } } | { error: string } {
+  if (!Object.hasOwn(value, "_meta") || value._meta === undefined) return { meta: {} };
+  if (!isRecord(value._meta)) return { error: `${uri} _meta must be an object` };
+  return { meta: { _meta: value._meta } };
+}
+
+/**
+ * Every skills request must carry `_meta`. pi 1.3.0's `McpClient.request` only
+ * adds `progressToken` there, and only when a progress listener is set. The
+ * protocol version is the one the connection negotiated: pi's Streamable HTTP
+ * transport mirrors that same value into `MCP-Protocol-Version`, and a mismatch
+ * is `HeaderMismatch`. When the port has not negotiated a version, the field is
+ * left unset rather than inventing `2026-07-28`.
+ */
+export function withRequestMeta(
+  params: Record<string, unknown> | undefined,
+  protocolVersion: string | undefined,
+): Record<string, unknown> {
+  const body = { ...(params ?? {}) };
+  const meta = isRecord(body._meta) ? { ...body._meta } : {};
+  if (protocolVersion !== undefined && meta[PROTOCOL_VERSION_META] === undefined) {
+    meta[PROTOCOL_VERSION_META] = protocolVersion;
+  }
+  if (meta[CLIENT_INFO_META] === undefined) meta[CLIENT_INFO_META] = { ...SKILLS_CLIENT_INFO };
+  const declared = isRecord(meta[CLIENT_CAPABILITIES_META]) ? meta[CLIENT_CAPABILITIES_META] : undefined;
+  meta[CLIENT_CAPABILITIES_META] = clientCapabilitiesWithSkills(declared);
+  body._meta = meta;
+  return body;
 }
 
 export interface ListPage {
@@ -331,14 +372,10 @@ export interface DirectoryChild {
 export function parseDirectoryResult(
   value: unknown,
   protocolVersion: string | undefined,
-): { resources: DirectoryChild[]; nextCursor?: string } | { error: string } {
+): { resources: DirectoryChild[]; nextCursor?: string; ttlMs?: number; cacheScope?: string } | { error: string } {
   if (!isRecord(value) || !Array.isArray(value.resources)) return { error: "resources/directory/read result needs a resources array" };
-  const strict = protocolRequiresCacheFields(protocolVersion);
-  if (value.resultType === undefined) {
-    if (strict) return { error: `resources/directory/read resultType must be "complete" on protocol ${CACHE_PROTOCOL} and later` };
-  } else if (value.resultType !== "complete") {
-    return { error: 'resources/directory/read resultType must be "complete"' };
-  }
+  const cache = readCacheFields(value, protocolVersion, "resources/directory/read");
+  if (typeof cache === "string") return { error: cache };
   const resources: DirectoryChild[] = [];
   for (const item of value.resources) {
     if (!isRecord(item) || typeof item.uri !== "string") return { error: "directory child is missing uri" };
@@ -351,7 +388,7 @@ export function parseDirectoryResult(
   }
   const nextCursor = value.nextCursor === null || value.nextCursor === "" ? undefined : value.nextCursor;
   if (nextCursor !== undefined && typeof nextCursor !== "string") return { error: "directory nextCursor must be a string" };
-  return { resources, ...(nextCursor === undefined ? {} : { nextCursor }) };
+  return { resources, ...(nextCursor === undefined ? {} : { nextCursor }), ...cache };
 }
 
 export function manifestChildren(skill: Skill, directoryUri: string): DirectoryChild[] {
