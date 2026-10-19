@@ -242,7 +242,7 @@ test("C09 cache fields are required on 2026-07-28 and are a freshness hint", asy
   assert.equal(oldHost.catalog().length, 1);
 
   let reads = 0;
-  let clock = 5_000;
+  clock = 5_000;
   const directory = new FakePort(
     skillsCapabilities(true),
     (method) => {
