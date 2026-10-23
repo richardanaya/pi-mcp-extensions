@@ -6,7 +6,7 @@ When a server needs a value or a yes-or-no, pi asks you and sends `accept`, `dec
 
 ## Install
 
-Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.3.0, the release this package is tested against. The hook patches the connection class in `dist/bundle/chunks/runtime-*.js` and the `McpClient` that class constructs. pi 1.3.0 still inlines that client in a bundle chunk, separate from `@earendil-works/pi-mcp`, so patching only the package export does not change `initialize`. The chunk hash is not hard-coded.
+Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.4.0, the release this package is tested against. `@earendil-works/pi-mcp` is pinned to 1.4.0 as well. The hook patches the connection class in `dist/bundle/chunks/runtime-*.js` and the `McpClient` that class constructs. pi 1.4.0 still inlines that client in a bundle chunk, separate from `@earendil-works/pi-mcp`, so patching only the package export does not change `initialize`. The chunk hash is not hard-coded. `@earendil-works/pi-mcp` is the package beside the runtime file: Node 22 ignores the parent argument of `import.meta.resolve` unless `--experimental-import-meta-resolve` is set, and `require.resolve` cannot see an `import`-only export, so the hook walks `node_modules` from the runtime and reads the `import` condition.
 
 ```bash
 pi install npm:pi-mcp-elicitations
@@ -91,7 +91,7 @@ Every client requirement below is implemented. The test column is the node:test 
 
 ## Protocol version
 
-pi 1.3.0 offers `2025-11-25` and accepts `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. `McpClient.connect` throws and closes the transport when a server selects anything else. The package export and `dist/client.js` share one mutable `SUPPORTED_PROTOCOL_VERSIONS` array. The CLI bundle inlines a second copy inside the chunk reached from `dist/bundle/chunks/runtime-*.js` and checks it with `Array.prototype.includes`. That copy is not exported.
+pi 1.4.0 offers `2025-11-25` and accepts `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. `McpClient.connect` throws and closes the transport when a server selects anything else. The package export and `dist/client.js` share one mutable `SUPPORTED_PROTOCOL_VERSIONS` array. The CLI bundle inlines a second copy inside the chunk reached from `dist/bundle/chunks/runtime-*.js` and checks it with `Array.prototype.includes`. That copy is not exported.
 
 The 2026-07-28 revision removes `initialize`. A server that follows that revision never answers the handshake, so accepting the version string cannot create a spec-strict 2026-07-28 session. Multi round-trip elicitation still works when a server that negotiated `2025-11-25` (the version pi offers) returns `resultType: "input_required"`. That is the supported path, and it does not change negotiation for skills, tasks, apps, or events.
 

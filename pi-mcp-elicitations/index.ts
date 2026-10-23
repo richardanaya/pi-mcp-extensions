@@ -28,7 +28,7 @@ export async function createExtension(pi: ExtensionAPI): Promise<ElicitationRunt
   pi.registerFlag("mcp-elicitations-protocol", {
     type: "string",
     default: "",
-    description: "Set to 2026-07-28 to offer that protocol version. Off by default. pi 1.3.0 still uses initialize. PI_MCP_ELICITATIONS_PROTOCOL wins.",
+    description: "Set to 2026-07-28 to offer that protocol version. Off by default. pi 1.4.0 still uses initialize. PI_MCP_ELICITATIONS_PROTOCOL wins.",
   });
   const runtime = new ElicitationRuntime({
     mode: () => approvalMode(pi.getFlag("mcp-elicitations-approvals")),

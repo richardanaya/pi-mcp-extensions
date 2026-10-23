@@ -1,7 +1,7 @@
 /**
  * Capability advertisement and the optional 2026-07-28 accept patch.
  *
- * pi 1.3.0's package client and its inlined CLI client both close over
+ * pi 1.4.0's package client and its inlined CLI client both close over
  * `SUPPORTED_PROTOCOL_VERSIONS`. The package export is that array. The CLI
  * copy lives in the chunk imported by `dist/bundle/chunks/runtime-*.js` and
  * is not exported. `connect` calls `.includes` on it. The patch below is

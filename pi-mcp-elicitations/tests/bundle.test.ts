@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpClient } from "@earendil-works/pi-mcp";
 import { bundledMcpClients, installBridge, patchBundledMcpClients } from "../src/bridge.ts";
 import { ElicitationRuntime } from "../src/runtime.ts";
@@ -102,5 +102,59 @@ describe("bundled McpClient", () => {
     assert.deepEqual(caps.elicitation, { form: {}, url: {} });
     assert.deepEqual(caps.sampling, {});
     assert.deepEqual(caps.extensions, { "io.modelcontextprotocol/tasks": {} });
+  });
+
+  it("patches a pi-mcp package imported beside the bundle, not this package's copy", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-mcp-elicitations-dist-"));
+    const chunks = join(root, "dist/bundle/chunks");
+    const pkgDir = join(root, "node_modules/@earendil-works/pi-mcp");
+    mkdirSync(chunks, { recursive: true });
+    mkdirSync(join(pkgDir, "dist"), { recursive: true });
+    writeFileSync(join(root, "package.json"), JSON.stringify({ type: "module" }));
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "@earendil-works/pi-mcp", type: "module", exports: { ".": { import: "./dist/index.js" } } }),
+    );
+    writeFileSync(
+      join(pkgDir, "dist/index.js"),
+      `export class McpClient {
+  constructor(options = {}) { this.options = options ?? {}; }
+  async connect() { this.seen = this.options.capabilities; }
+}
+`,
+    );
+    writeFileSync(
+      join(chunks, "chunk-CONN.js"),
+      `import { McpClient } from "@earendil-works/pi-mcp";
+export class McpServerConnection {
+  async getClient() { return new McpClient(); }
+}
+`,
+    );
+    writeFileSync(
+      join(chunks, "runtime-FIXTURE.js"),
+      `import { McpServerConnection } from "./chunk-CONN.js";
+export { McpServerConnection };
+`,
+    );
+    try {
+      const clients = await patchBundledMcpClients(root);
+      assert.equal(clients.length, 1);
+      assert.notEqual(clients[0], McpClient);
+      const client = new clients[0]!({
+        name: "pi",
+        version: "0",
+        capabilities: { sampling: {}, extensions: { "io.modelcontextprotocol/tasks": {} } },
+      });
+      await client.connect?.(undefined);
+      const seen = (client as { seen?: { elicitation?: { form?: unknown; url?: unknown }; sampling?: unknown; extensions?: unknown } }).seen;
+      assert.deepEqual(seen?.elicitation, { form: {}, url: {} });
+      assert.deepEqual(seen?.sampling, {});
+      assert.deepEqual(seen?.extensions, { "io.modelcontextprotocol/tasks": {} });
+      const mod = await import(pathToFileURL(join(pkgDir, "dist/index.js")).href);
+      assert.equal(clients[0], (mod as { McpClient: unknown }).McpClient);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

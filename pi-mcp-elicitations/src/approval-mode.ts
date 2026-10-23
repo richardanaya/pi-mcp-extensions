@@ -7,7 +7,7 @@ export function approvalMode(flag: boolean | string | undefined, env = process.e
 }
 
 /**
- * pi 1.3.0 offers `2025-11-25`. `2026-07-28` is opt-in and only useful with a server that
+ * pi 1.4.0 offers `2025-11-25`. `2026-07-28` is opt-in and only useful with a server that
  * still completes `initialize`. Anything else leaves negotiation unchanged.
  */
 export function protocolOffer(flag: boolean | string | undefined, env = process.env.PI_MCP_ELICITATIONS_PROTOCOL): "2026-07-28" | undefined {
