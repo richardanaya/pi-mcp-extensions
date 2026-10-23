@@ -55,7 +55,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Advertise the extension from the client during initialize (SEP-2133). An empty settings object means support with no client-specific settings.",
     status: "implemented",
     test: "tests/unit.test.ts C03",
-    note: "pi-mcp 1.3.0 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on McpClient.connect before initialize, including the client class the pi CLI bundle inlines. pi 1.3.0 still reaches that class from dist/bundle/chunks/runtime-*.js.",
+    note: "pi-mcp 1.4.0 ClientCapabilities omits extensions, and the built-in MCP extension does not pass any. The attach hook adds the field on McpClient.connect before initialize, including the client class the pi CLI bundle inlines. pi 1.4.0 still reaches that class from dist/bundle/chunks/runtime-*.js.",
   },
   {
     id: "C04",
@@ -470,7 +470,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Send skills and resource requests through the MCP client pi already connected. Do not open a second client for the same server.",
     status: "implemented",
     test: "tests/integration.test.ts C54",
-    note: "ExtensionAPI in pi 1.3.0 has no request or notification method. The workaround patches McpServerConnection.connectOnce, getClient, and McpClient.connect on the unbundled runtime and on the inlined McpClient the bundled runtime-*.js graph constructs.",
+    note: "ExtensionAPI in pi 1.4.0 has no request or notification method. The workaround patches McpServerConnection.connectOnce, getClient, and McpClient.connect on the unbundled runtime and on the inlined McpClient the bundled runtime-*.js graph constructs.",
   },
   {
     id: "C55",
@@ -487,7 +487,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     text: "Every skills/list, skills/get, resources/read, and resources/directory/read request includes params._meta. When the connection negotiated a protocol version, that version is io.modelcontextprotocol/protocolVersion. clientCapabilities is always present and advertises this extension.",
     status: "implemented",
     test: "tests/unit.test.ts C56",
-    note: "ext-skills 4ad2d3a gave skills/get and resources/directory/read named params interfaces on which _meta is required. The page already said every request MUST include it. pi 1.3.0 McpClient.request does not add protocol _meta (it only merges progressToken). This client adds the fields. The version is the negotiated one, so it matches the MCP-Protocol-Version header pi's transport sends. pi 1.3.0 still negotiates 2025-11-25, not 2026-07-28. clientInfo is included. ListSkillsResultResponse, GetSkillResultResponse, and ReadResourceDirectoryResultResponse are the JSON-RPC envelopes; this client reads the result object after that unwrap.",
+    note: "ext-skills 4ad2d3a gave skills/get and resources/directory/read named params interfaces on which _meta is required. The page already said every request MUST include it. pi 1.4.0 McpClient.request does not add protocol _meta (it only merges progressToken). This client adds the fields. The version is the negotiated one, so it matches the MCP-Protocol-Version header pi's transport sends. pi 1.4.0 still negotiates 2025-11-25, not 2026-07-28. clientInfo is included. ListSkillsResultResponse, GetSkillResultResponse, and ReadResourceDirectoryResultResponse are the JSON-RPC envelopes; this client reads the result object after that unwrap.",
   },
   {
     id: "C57",

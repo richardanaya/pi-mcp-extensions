@@ -39,7 +39,7 @@ export async function installBridge(agentRoot?: string): Promise<void> {
       }
     }
     try {
-      const mcp = (await import(import.meta.resolve("@earendil-works/pi-mcp", runtimeUrl))) as {
+      const mcp = (await import(resolveFromFile(runtimePath, "@earendil-works/pi-mcp"))) as {
         McpClient: { prototype: Patchable };
       };
       patchClient(mcp.McpClient.prototype);
@@ -225,8 +225,54 @@ function clauseNames(clause: string): string[] {
 }
 
 function resolveSpecifier(fromFile: string, spec: string): string {
+  return resolveFromFile(fromFile, spec);
+}
+
+/**
+ * Node 22 ignores the parent argument of `import.meta.resolve` unless
+ * `--experimental-import-meta-resolve` is set, and pi-mcp's exports map is
+ * `import` only, so `require.resolve` cannot see it. Walk from the runtime
+ * file and read the `import` condition.
+ */
+function resolveFromFile(fromFile: string, spec: string): string {
   if (spec.startsWith(".")) return new URL(spec, pathToFileURL(fromFile)).href;
-  return import.meta.resolve(spec, pathToFileURL(fromFile).href);
+  const name = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!;
+  const sub = spec.slice(name.length).replace(/^\//, "");
+  let dir = dirname(fromFile);
+  for (;;) {
+    const pkgDir = join(dir, "node_modules", name);
+    const manifestPath = join(pkgDir, "package.json");
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { exports?: unknown; main?: string };
+      return pathToFileURL(join(pkgDir, exportedPath(manifest, sub))).href;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`Cannot resolve ${spec} from ${fromFile}`);
+}
+
+function exportedPath(manifest: { exports?: unknown; main?: string }, sub: string): string {
+  const key = sub === "" ? "." : `./${sub}`;
+  const exportsField = manifest.exports;
+  if (typeof exportsField === "string" && sub === "") return exportsField;
+  if (isRecord(exportsField) && Object.hasOwn(exportsField, key)) {
+    const target = exportTarget(exportsField[key]);
+    if (target) return target;
+  }
+  if (sub === "" && typeof manifest.main === "string") return manifest.main;
+  throw new Error(`Package has no ${key} export`);
+}
+
+function exportTarget(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (!isRecord(value)) return undefined;
+  for (const condition of ["import", "default", "require"]) {
+    const target = exportTarget(value[condition]);
+    if (target) return target;
+  }
+  return undefined;
 }
 
 function isMcpClientClass(value: unknown): value is BundledMcpClient {

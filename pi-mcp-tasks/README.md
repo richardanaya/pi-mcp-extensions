@@ -8,7 +8,7 @@ The pinned spec is ext-tasks `899c1bbc869567670093face3591b39c28ce3219`, `specif
 
 ## Install
 
-Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.3.0, the release this package is tested against. The hook patches the connection class in `dist/bundle/chunks/runtime-*.js` and the `McpClient` that class constructs. pi 1.3.0 still inlines that client in a bundle chunk, separate from `@earendil-works/pi-mcp`, so patching only the package export does not change `initialize`.
+Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.4.0, the release this package is tested against. The hook patches the connection class in `dist/bundle/chunks/runtime-*.js` and the `McpClient` that class constructs. pi 1.4.0 still inlines that client in a bundle chunk, separate from `@earendil-works/pi-mcp`, so patching only the package export does not change `initialize`.
 
 ```bash
 pi install npm:pi-mcp-tasks
@@ -114,7 +114,7 @@ pi's public extension API cannot do four things this protocol needs. The workaro
 
 | Gap | Workaround |
 | --- | --- |
-| `ClientCapabilities` has no `extensions` field, and nothing lets an extension add one at initialize. | Wrap `McpClient.prototype.connect` on the `@earendil-works/pi-mcp` export and on the `McpClient` the bundled runtime imports. pi 1.3.0 still inlines that class in a chunk reached from `dist/bundle/chunks/runtime-*.js`; the chunk hash is not hard-coded. Both initialize payloads gain the tasks extension. |
+| `ClientCapabilities` has no `extensions` field, and nothing lets an extension add one at initialize. | Wrap `McpClient.prototype.connect` on the `@earendil-works/pi-mcp` export and on the `McpClient` the bundled runtime imports. pi 1.4.0 still inlines that class in a chunk reached from `dist/bundle/chunks/runtime-*.js`; the chunk hash is not hard-coded. Both initialize payloads gain the tasks extension. |
 | `tools/call` sends only `name` and `arguments`. There is no hook to add `_meta`. | Wrap `client.request` after `getClient()`. |
 | There is no public `pi.mcpRequest`. | `tasks/get`, `tasks/update`, `tasks/cancel`, `server/discover`, and `subscriptions/listen` go through that same `client.request`. The binding calls the original `getClient` so the wrap does not recurse. |
 | Streamable HTTP builds headers inside the transport, with no per-request hook. | Replace `transport.headers` for the duration of those three methods, under `AsyncLocalStorage`, so concurrent calls do not share a task id. |
@@ -123,8 +123,8 @@ Other limits, left as they are:
 
 - `tool_result` runs after pi has converted the MCP result. A direct `tool.execute()` never emits it. Task detection therefore starts in the wrapped `request`, and `tool_result` only rewrites the text the model sees. The rewritten result still returns `structuredContent`.
 - pi does not implement elicitation or sampling. This extension confirms through `ctx.ui` and does not accept on the user's behalf.
-- `McpServerConnection` is not in the package exports map, and the exports condition is `import` only. The patch loads it by `import.meta.resolve` plus the file URL.
-- pi 1.3.0 still requests `2025-11-25` and also accepts `2025-06-18`, `2025-03-26`, and `2024-11-05`. It does not offer `2026-07-28`. `McpClient.connect` rejects a server that selects a version outside that list, so this package cannot negotiate the tasks revision with a spec-strict server. SEP-2663 says the tasks extension is not defined for `2025-11-25` and that servers must not treat the capability as enabling tasks on it. This client still sends the capability. A server that follows the spec on `2025-11-25` will answer with an immediate tool result, which this client delivers unchanged. The test server speaks `2025-11-25` because that is the version pi will negotiate, and it honors the extension anyway.
+- `McpServerConnection` is not in the package exports map, and the exports condition is `import` only. The patch loads that runtime by file URL. `@earendil-works/pi-mcp` is the package beside that file: Node 22 ignores the parent argument of `import.meta.resolve` unless `--experimental-import-meta-resolve` is set, and `require.resolve` cannot see an `import`-only export, so the hook walks `node_modules` from the runtime and reads the `import` condition.
+- pi 1.4.0 still requests `2025-11-25` and also accepts `2025-06-18`, `2025-03-26`, and `2024-11-05`. It does not offer `2026-07-28`. `McpClient.connect` rejects a server that selects a version outside that list, so this package cannot negotiate the tasks revision with a spec-strict server. SEP-2663 says the tasks extension is not defined for `2025-11-25` and that servers must not treat the capability as enabling tasks on it. This client still sends the capability. A server that follows the spec on `2025-11-25` will answer with an immediate tool result, which this client delivers unchanged. The test server speaks `2025-11-25` because that is the version pi will negotiate, and it honors the extension anyway.
 - `session.dispose()` does not emit `session_shutdown`. pi closes MCP children only on that event. Quitting or reloading the session does emit it. Tests emit it themselves so the fixture process exits.
 
 ## Development

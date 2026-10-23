@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpClient } from "@earendil-works/pi-mcp";
 import { bundledMcpClients, installBridge } from "../src/bridge.ts";
 
@@ -88,4 +88,40 @@ test("installed pi bundle McpClient is not the package export and advertises ui"
   const caps = client.options?.capabilities as { extensions?: Record<string, unknown>; sampling?: unknown };
   assert.deepEqual(caps.extensions?.[UI], { mimeTypes: ["text/html;profile=mcp-app"] });
   assert.deepEqual(caps.sampling, {});
+});
+
+test("pi-mcp beside the runtime is patched when it is not this package's copy", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-mcp-apps-dist-"));
+  const pkgDir = join(root, "node_modules/@earendil-works/pi-mcp");
+  mkdirSync(join(root, "dist/extensions/mcp"), { recursive: true });
+  mkdirSync(join(pkgDir, "dist"), { recursive: true });
+  writeFileSync(join(root, "dist/extensions/mcp/runtime.js"), "export {}\n");
+  writeFileSync(
+    join(pkgDir, "package.json"),
+    JSON.stringify({ name: "@earendil-works/pi-mcp", type: "module", exports: { ".": { import: "./dist/index.js" } } }),
+  );
+  writeFileSync(
+    join(pkgDir, "dist/index.js"),
+    `export class McpClient {
+  constructor(options = {}) { this.options = options; }
+  async connect() { this.seen = this.options?.capabilities; }
+}
+`,
+  );
+  try {
+    await installBridge(root);
+    const mod = (await import(pathToFileURL(join(pkgDir, "dist/index.js")).href)) as {
+      McpClient: new (options?: { capabilities?: Record<string, unknown> }) => {
+        connect(): Promise<void>;
+        seen?: { extensions?: Record<string, unknown>; sampling?: unknown };
+      };
+    };
+    assert.notEqual(mod.McpClient, McpClient);
+    const client = new mod.McpClient({ capabilities: { sampling: {} } });
+    await client.connect();
+    assert.deepEqual(client.seen?.extensions?.[UI], { mimeTypes: ["text/html;profile=mcp-app"] });
+    assert.deepEqual(client.seen?.sampling, {});
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

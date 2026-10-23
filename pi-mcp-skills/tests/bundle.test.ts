@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { McpClient } from "@earendil-works/pi-mcp";
 import { bundledMcpClients, installPiMcpHooks, piCodingAgentRoot } from "../src/attach.ts";
 import { EXTENSION_ID } from "../src/model.ts";
@@ -89,4 +90,41 @@ test("installed pi bundle McpClient is not the package export and advertises ski
   const caps = client.options?.capabilities as { extensions?: Record<string, unknown>; sampling?: unknown };
   assert.deepEqual(caps.extensions?.[EXTENSION_ID], {});
   assert.deepEqual(caps.sampling, {});
+});
+
+test("pi-mcp beside the runtime is patched when it is not this package's copy", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-mcp-skills-dist-"));
+  const pkgDir = join(root, "node_modules/@earendil-works/pi-mcp");
+  mkdirSync(join(root, "dist/extensions/mcp"), { recursive: true });
+  mkdirSync(join(pkgDir, "dist"), { recursive: true });
+  writeFileSync(join(root, "dist/extensions/mcp/runtime.js"), "export {}\n");
+  writeFileSync(
+    join(pkgDir, "package.json"),
+    JSON.stringify({ name: "@earendil-works/pi-mcp", type: "module", exports: { ".": { import: "./dist/index.js" } } }),
+  );
+  writeFileSync(
+    join(pkgDir, "dist/index.js"),
+    `export class McpClient {
+  constructor(options = {}) { this.options = options ?? {}; }
+  async connect() { this.seen = this.options.capabilities; }
+}
+`,
+  );
+  try {
+    const hook = await installPiMcpHooks({ onReady() {}, onClose() {} }, root);
+    assert.equal(hook.installed, true, hook.gap);
+    const mod = (await import(pathToFileURL(join(pkgDir, "dist/index.js")).href)) as {
+      McpClient: new (options?: { capabilities?: Record<string, unknown> }) => {
+        connect(): Promise<void>;
+        seen?: { extensions?: Record<string, unknown>; sampling?: unknown };
+      };
+    };
+    assert.notEqual(mod.McpClient, McpClient);
+    const client = new mod.McpClient({ capabilities: { sampling: {} } });
+    await client.connect();
+    assert.deepEqual(client.seen?.extensions?.[EXTENSION_ID], {});
+    assert.deepEqual(client.seen?.sampling, {});
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
