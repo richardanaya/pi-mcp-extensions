@@ -1,8 +1,8 @@
 # pi-mcp-extensions
 
-![pi-mcp-extensions: pi with Skills, Tasks, Apps and Events](docs/pi-mcp-extensions.jpg)
+![pi-mcp-extensions: pi with Skills, Tasks, Apps, Events and Elicitations](docs/pi-mcp-extensions.jpg)
 
-[pi](https://github.com/earendil-works/pi) is a coding agent, and MCP extensions are extra capabilities some servers offer on top of ordinary tools. This repository gives you four packages that install those capabilities into pi.
+[pi](https://github.com/earendil-works/pi) is a coding agent, and MCP extensions are extra capabilities some servers offer on top of ordinary tools. This repository gives you five packages that install those capabilities into pi.
 
 ## Skills
 
@@ -43,6 +43,16 @@ pi install npm:pi-mcp-events
 ```
 
 [Package README](pi-mcp-events/README.md)
+
+## Elicitations
+
+When an MCP server needs a value or a yes-or-no from you, pi asks you and sends your answer back.
+
+```bash
+pi install npm:pi-mcp-elicitations
+```
+
+[Package README](pi-mcp-elicitations/README.md)
 
 ## License
 
