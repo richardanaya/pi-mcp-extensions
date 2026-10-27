@@ -280,7 +280,7 @@ function skillMeta(value: Record<string, unknown>, uri: string): { meta: { _meta
 }
 
 /**
- * Every skills request must carry `_meta`. pi 1.3.0's `McpClient.request` only
+ * Every skills request must carry `_meta`. pi 1.4.0's `McpClient.request` only
  * adds `progressToken` there, and only when a progress listener is set. The
  * protocol version is the one the connection negotiated: pi's Streamable HTTP
  * transport mirrors that same value into `MCP-Protocol-Version`, and a mismatch
