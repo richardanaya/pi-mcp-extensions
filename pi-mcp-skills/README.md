@@ -1,14 +1,14 @@
 # pi-mcp-skills
 
-pi extension that discovers and loads [MCP skills](https://skills.extensions.modelcontextprotocol.io/specification/stable/skills) from the servers pi is already connected to.
+pi extension that discovers and loads [MCP skills](https://skills.extensions.modelcontextprotocol.io/specification/beta/skills) from the servers pi is already connected to.
 
-[SEP-2640](https://modelcontextprotocol.io/seps/2640-skills-extension) (Final, merged 2026-09-13) added the Skills extension to MCP. The SEP page is a historical record. This package implements the client and lookup side of the stable specification that replaced it (`modelcontextprotocol/ext-skills` `specification/stable/skills.mdx` at commit [`4ad2d3a`](https://github.com/modelcontextprotocol/ext-skills/commit/4ad2d3a), PR #157, base protocol 2026-07-28). The extension id is `io.modelcontextprotocol/skills`.
+[SEP-2640](https://modelcontextprotocol.io/seps/2640-skills-extension) (Final, merged 2026-09-13) added the Skills extension to MCP. The SEP page is a historical record. This package implements the client and lookup side of the Beta specification that replaced it (`modelcontextprotocol/ext-skills` `specification/beta/skills.mdx` at commit [`4ad2d3a`](https://github.com/modelcontextprotocol/ext-skills/commit/4ad2d3a), PR #157, base protocol 2026-07-28). [SEP-3392](https://modelcontextprotocol.io/seps/3392-extension-lifecycle) (Extension Lifecycle, Final) classifies Skills as a Beta extension. Commit [`ff22433`](https://github.com/modelcontextprotocol/ext-skills/commit/ff22433) (PR #161) moved that file from `specification/stable/` to `specification/beta/` without changing its contents. The extension id is `io.modelcontextprotocol/skills`.
 
 A skills server lists skill entries with `skills/list`. Each entry names a `SKILL.md` resource, the Agent Skills frontmatter, and either a complete file manifest (URI, sha256 digest, and size) or the string `dynamic`. The client fetches file bytes with `resources/read` only when a skill is inspected, loaded, or a supporting file is read, then checks the digest, the size, and the frontmatter. `skills/get` loads one skill by URI when a page of the list omitted it, and it is how a stale manifest is refreshed.
 
 ## Install
 
-Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.4.0, the release this package is tested against. pi's CLI does not use the `McpClient` exported by `@earendil-works/pi-mcp`. It constructs the copy inlined under `dist/bundle/chunks/`, reached from `runtime-*.js`. That layout is unchanged in 1.4.0. The hook patches that class as well as the package export, so `initialize` from the CLI advertises `io.modelcontextprotocol/skills`. The chunk hash is not hard-coded; the hook follows the bundle's imports.
+Node 22. The peer dependency is the exact pin `@earendil-works/pi-coding-agent` 1.5.0, the release this package is tested against. pi's CLI does not use the `McpClient` exported by `@earendil-works/pi-mcp`. It constructs the copy inlined under `dist/bundle/chunks/`, reached from `runtime-*.js`. That layout is unchanged in 1.5.0. The hook patches that class as well as the package export, so `initialize` from the CLI advertises `io.modelcontextprotocol/skills`. The chunk hash is not hard-coded; the hook follows the bundle's imports.
 
 ```bash
 pi install npm:pi-mcp-skills
@@ -43,7 +43,7 @@ The cache is in memory, keyed by server, URI, and digest. A cache hit is hashed 
 
 ## Compliance
 
-Source of truth: stable Skills extension at ext-skills commit `4ad2d3a` (PR #157, 2026-10-15), base protocol 2026-07-28. SEP-2640 Final (2026-09-13) is the historical record. Where they disagree, the stable spec wins and the note says so.
+Source of truth: Beta Skills extension at ext-skills `specification/beta/skills.mdx` (content commit `4ad2d3a`, PR #157, 2026-10-15; moved from `specification/stable/` in `ff22433`, PR #161), base protocol 2026-07-28. SEP-3392 (Extension Lifecycle, Final) classifies Skills as Beta. SEP-2640 Final (2026-09-13) is the historical record. Where they disagree, the Beta spec wins and the note says so.
 
 | ID | Level | Section | Requirement | Status | Test |
 | --- | --- | --- | --- | --- | --- |
@@ -107,19 +107,19 @@ Source of truth: stable Skills extension at ext-skills commit `4ad2d3a` (PR #157
 
 ### Readings and notes
 
-- **C03.** pi-mcp 1.4.0 `ClientCapabilities` still omits `extensions`, and the built-in MCP extension does not pass any. The attach hook adds the field on `McpClient.connect` before initialize, including the client class the pi CLI bundle inlines. The 1.4.0 bundle still reaches that class from `dist/bundle/chunks/runtime-*.js`.
+- **C03.** pi-mcp 1.5.0 `ClientCapabilities` still omits `extensions`, and the built-in MCP extension does not pass any. The attach hook adds the field on `McpClient.connect` before initialize, including the client class the pi CLI bundle inlines. The 1.5.0 bundle still reaches that class from `dist/bundle/chunks/runtime-*.js`.
 - **C09.** ext-skills `4ad2d3a` (PR #157) made `ReadResourceDirectoryResult` extend `CacheableResult`, so a directory read now requires `ttlMs` and `cacheScope` the same way `skills/list` and `skills/get` already did. Older negotiated protocols may omit them. A directory listing that includes `ttlMs` is reused until that hint elapses. An omission is tolerated and the directory is read again. `cacheScope` is stored and is not an integrity check.
-- **C56.** pi 1.4.0 `McpClient.request` does not add protocol `_meta`. It only merges `progressToken` when a progress listener is set. This client adds `protocolVersion` (the negotiated version, so it matches `MCP-Protocol-Version`), `clientInfo`, and `clientCapabilities`. `ListSkillsResultResponse`, `GetSkillResultResponse`, and `ReadResourceDirectoryResultResponse` are the JSON-RPC envelopes. This client reads the result object after that unwrap.
+- **C56.** pi 1.5.0 `McpClient.request` does not add protocol `_meta`. It only merges `progressToken` when a progress listener is set. This client adds `protocolVersion` (the negotiated version, so it matches `MCP-Protocol-Version`), `clientInfo`, and `clientCapabilities`. `ListSkillsResultResponse`, `GetSkillResultResponse`, and `ReadResourceDirectoryResultResponse` are the JSON-RPC envelopes. This client reads the result object after that unwrap.
 - **C57.** Optional `_meta` on `Skill` is kept and not interpreted. A non-object `_meta` rejects the entry.
 - **C16.** Hosts MAY accept larger skills. This client stops at the published limits so every conforming server is loadable and anything beyond them is explained instead of failing on a later read.
 - **C23.** Rules read from the Agent Skills specification (1–64 lowercase unicode letters or digits, hyphens not leading, trailing, or doubled). If that specification changes incompatibly, this client still accepts the previous naming rules.
 - **C42.** pi 1.0.1 has no per-skill permission grant. This client never applies allowed-tools, so the field cannot widen access.
 - **C50.** There is no on-disk skill cache, so the disk-cache integrity and durable-origin rules are met by not writing one. Restarting pi drops the cache and the remembered approvals.
-- **C51.** The Final SEP and the stable spec do not define notifications/skills/list_changed. The working group previously pointed at resources/list_changed, and that is what pi's client already delivers. This client refreshes on that notification.
-- **C54.** ExtensionAPI in pi 1.4.0 has no request or notification method. The workaround patches `McpServerConnection.connectOnce`, `getClient`, and `McpClient.connect` on the unbundled runtime and on the inlined `McpClient` the bundled `runtime-*.js` graph constructs.
+- **C51.** The Final SEP and the Beta spec do not define notifications/skills/list_changed. The working group previously pointed at resources/list_changed, and that is what pi's client already delivers. This client refreshes on that notification.
+- **C54.** ExtensionAPI in pi 1.5.0 has no request or notification method. The workaround patches `McpServerConnection.connectOnce`, `getClient`, and `McpClient.connect` on the unbundled runtime and on the inlined `McpClient` the bundled `runtime-*.js` graph constructs.
 
-- The stable spec mentions `server/discover` as the long-term way to negotiate extensions. pi 1.4.0 still speaks `initialize`. It requests `2025-11-25` and also accepts `2025-06-18`, `2025-03-26`, and `2024-11-05`. It does not offer `2026-07-28`. This client reads the extension from the initialize capabilities and does not call `server/discover`.
-- pi's negotiated protocol is older than 2026-07-28, so a live server may omit `resultType`, `ttlMs`, and `cacheScope`. Those fields are required only when the negotiated version is 2026-07-28 or later. When they are present they are still checked. Skill lookup does not depend on pi listing resources at connect. pi 1.4.0 records `resources: true` from the capability and does not call `resources/list` during connect. This client calls `skills/list` and `resources/read` itself.
+- The Beta spec mentions `server/discover` as the long-term way to negotiate extensions. pi 1.5.0 still speaks `initialize`. It requests `2025-11-25` and also accepts `2025-06-18`, `2025-03-26`, and `2024-11-05`. It does not offer `2026-07-28`. This client reads the extension from the initialize capabilities and does not call `server/discover`.
+- pi's negotiated protocol is older than 2026-07-28, so a live server may omit `resultType`, `ttlMs`, and `cacheScope`. Those fields are required only when the negotiated version is 2026-07-28 or later. When they are present they are still checked. Skill lookup does not depend on pi listing resources at connect. pi 1.5.0 records `resources: true` from the capability and does not call `resources/list` during connect. This client calls `skills/list` and `resources/read` itself.
 - `nextCursor` of `null` or `""` ends a page, matching pi's own client.
 - An approval fingerprint includes size as well as URI and digest, which is the resources set the spec binds the approval to.
 - Hosts may accept skills larger than 512 resources or 16 MiB. This client declines them and explains why.
