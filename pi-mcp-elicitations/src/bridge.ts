@@ -1,7 +1,7 @@
 /**
  * Narrow patches on pi's built-in MCP client.
  *
- * pi 1.4.0 does not let an extension add the elicitation capability at initialize
+ * pi 1.5.0 does not let an extension add the elicitation capability at initialize
  * or handle `elicitation/create` on the client it already opened. These patches
  * use that client. They do not open a second connection.
  *
